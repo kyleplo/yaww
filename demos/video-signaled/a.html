@@ -21,9 +21,9 @@
                 socket.addEventListener("message", ms => {
                     const m = JSON.parse(ms.data);
                     if(m.type === "iceCandidate"){
-                        conn.recieveIceCandidate(JSON.parse(m.data));
+                        conn.receiveIceCandidate(JSON.parse(m.data));
                     }else if(m.type === "sdp"){
-                        conn.recieveAnswer(JSON.parse(m.data));
+                        conn.receiveAnswer(JSON.parse(m.data));
                     }else if(m.type === "id"){
                         document.querySelector("#id").textContent = m.data;
                     }else if(m.type === "peerDisconnect"){

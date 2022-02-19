@@ -71,11 +71,11 @@
                     e.target.play();
                 });
                 document.querySelector("#submitOffer").addEventListener("click", async () => {
-                    document.querySelector("#answer").value = JSON.stringify(await conn.recieveOffer(JSON.parse(document.querySelector("#offer").value)));
+                    document.querySelector("#answer").value = JSON.stringify(await conn.receiveOffer(JSON.parse(document.querySelector("#offer").value)));
                 });
                 document.querySelector("#submitCandidates").addEventListener("click", () => {
                     document.querySelector("#remoteCandidates").value.split("\n\n").filter(i => i.length).forEach(c => {
-                        conn.recieveIceCandidate(JSON.parse(c));
+                        conn.receiveIceCandidate(JSON.parse(c));
                     })
                 })
             });

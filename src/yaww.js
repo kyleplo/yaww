@@ -169,7 +169,7 @@ class Connection extends EventTarget {
         this._rtc.addEventListener("datachannel", e => {
             if(e.channel.label.startsWith("ping-")){
                 if(this._remotePingChannel){
-                    throw "YAWWError: Multiple remote ping channels recieved."
+                    throw "YAWWError: Multiple remote ping channels received."
                 }
                 this._remotePingChannel = e.channel;
                 this._remotePingChannel.addEventListener("message", e => {
@@ -401,7 +401,7 @@ class Connection extends EventTarget {
         return o;
     }
 
-    async recieveOffer (o) {
+    async receiveOffer (o) {
         if(this.connectionState === "closed"){
             throw "YAWWError: Connection closed.";
         }
@@ -413,7 +413,7 @@ class Connection extends EventTarget {
         return a;
     }
 
-    async recieveAnswer (a) {
+    async receiveAnswer (a) {
         if(this.connectionState !== "awaiting-answer"){
             throw "YAWWError: Connection cannot accept answer.";
         }
@@ -421,7 +421,7 @@ class Connection extends EventTarget {
         await this._rtc.setRemoteDescription(a);
     }
 
-    async recieveIceCandidate (c) {
+    async receiveIceCandidate (c) {
         if(this.connectionState !== "negotiating" && this.connectionState !== "connected"){
             this._queuedCandidates.push(new RTCIceCandidate(c));``
         }else{

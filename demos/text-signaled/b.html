@@ -23,9 +23,9 @@
                 socket.addEventListener("message", async ms => {
                     const m = JSON.parse(ms.data);
                     if(m.type === "iceCandidate"){
-                        conn.recieveIceCandidate(JSON.parse(m.data));
+                        conn.receiveIceCandidate(JSON.parse(m.data));
                     }else if(m.type === "sdp"){
-                        const a = await conn.recieveOffer(JSON.parse(m.data));
+                        const a = await conn.receiveOffer(JSON.parse(m.data));
                         socket.send(JSON.stringify({
                             type: "sdp",
                             data: JSON.stringify(a)

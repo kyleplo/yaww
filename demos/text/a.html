@@ -62,11 +62,11 @@
                     document.querySelector("#thread").append(l);
                 });
                 document.querySelector("#submitAnswer").addEventListener("click", () => {
-                    conn.recieveAnswer(JSON.parse(document.querySelector("#answer").value));
+                    conn.receiveAnswer(JSON.parse(document.querySelector("#answer").value));
                 });
                 document.querySelector("#submitCandidates").addEventListener("click", () => {
                     document.querySelector("#remoteCandidates").value.split("\n\n").filter(i => i.length).forEach(c => {
-                        conn.recieveIceCandidate(JSON.parse(c));
+                        conn.receiveIceCandidate(JSON.parse(c));
                     })
                 })
                 document.querySelector("#send").addEventListener("click", () => {

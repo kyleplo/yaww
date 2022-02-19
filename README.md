@@ -2,19 +2,19 @@
 Let's face it: WebRTC is complicated. There's lots of strange terminology, cross browser quirks, and networking combinations that need to be handled. There's also a ton of libraries out there that attempt to make WebRTC simpler, but none of them quite meet my needs. Most of them are either unmaintained since 2016 (a long time), locked into some SaaS, or just poorly documented. While YAWW isn't perfect, it's my WebRTC library and it works for me. If it's what you need as well, great!
 
 ## How WebRTC Works
-There are definetely people more qualified to do this, but I'll give it a go...
+There are definitely people more qualified to do this, but I'll give it a go...
 
 Let's say you have two users, A and B, and they want to connect over WebRTC.
 
 A: Creates an offer and sends it to B. Since the WebRTC connection is not yet established, this exchange must go through an external server known as a signaling server. The offer includes information about A's internet connection, usually including A's IP address or an equivalent identifier.
 
-B: Recieves and applies the offer, and generates an answer to send back to A. An answer serves the same function as an offer, it just goes the other way.
+B: Receives and applies the offer, and generates an answer to send back to A. An answer serves the same function as an offer, it just goes the other way.
 
-A: Recieves and applies the answer.
+A: Receives and applies the answer.
 
 Now both A and B know where each other are on the Internet, but they don't know how to send information back and forth. While the exchange of offers and answers is going on, A and B also generate ICE candidates, which are basically possible paths for data to travel between A and B. ICE candidates may also contain the device's media capabilities, such as supported formats and codecs.
 
-A and B then send their ICE candidates to each other, begining the negotiation process. A and B's browsers figure out which ICE candidate (if any) produces the most efficent path.
+A and B then send their ICE candidates to each other, beginning the negotiation process. A and B's browsers figure out which ICE candidate (if any) produces the most efficient path.
 
 Once the negotiation process is done, A and B may communicate over WebRTC, and the signaling server is no longer needed.
 
@@ -53,12 +53,12 @@ conn.init();
 const offer = await conn.offer();
 
 // you will need to handle sending the offer
-// recieve the offer and generate an answer on the other end
-const answer = await conn.recieveOffer(offer);
+// receive the offer and generate an answer on the other end
+const answer = await conn.receiveOffer(offer);
 
 // you will need to handle sending the answer
-// recieve the answer
-await conn.recieveAnswer(answer);
+// receive the answer
+await conn.receiveAnswer(answer);
 ```
 And negotiation...
 ```js
@@ -68,15 +68,15 @@ conn.addEventListener("icecandidate", e => {
     // you will need to handle sending the ice candidate
 });
 
-// recieve an ice candidate
-conn.recieveIceCandidate(candidate);
+// receive an ice candidate
+conn.receiveIceCandidate(candidate);
 ```
 And if all goes well, the connection should be made, and you'll be able to make use of data channels and streams.
 ```js
 // send to the other client
 dat.send("hello");
 
-// recieve a message
+// receive a message
 dat.addEventListener("message", e => {
     const msg = e.message;
 });
@@ -94,7 +94,7 @@ You may need to change the address of the WebSocket server if you aren't using `
 
 Note that the demos that use video require a secure context. This includes `file:` and `localhost:` in most browsers, but won't work across devices using just your IP address, unless you either set up an SSL certificate or use a forwarding/tunneling server.
 
-## Maintenence
+## Maintenance
 I'm planning on using YAWW in a number of personal projects, so I'm probably discover some bugs along the way.
 
 If you find anything, report it using Github's issues feature and I'll try to help but don't expect too much. If you can fix it yourself, fork it and make a pull request.
