@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Client B - YAWW Demo</title>
+    </head>
+    <body>
+        <h2>Client B - YAWW Demo</h2>
+        <p>Join user with ID: <input type="text" id="id"> <button id="join">Join</button></p>
+        <p>Ping: <span id="ping"></span></p>
+        <p>
+            <input type="text" id="message"> <button id="send">Send</button>
+        </p>
+        <ul id="thread"></ul>
+        <script src="../../src/yaww.js"></script>
+        <script>
+            var conn, dat, socket;
+            var socketConnected = false;
+            window.addEventListener("load", async () => {
+                socket = new WebSocket("ws://localhost:7071");
+                socket.addEventListener("open", () => {
+                    socketConnected = true;
+                });
+                socket.addEventListener("message", async ms => {
+                    const m = JSON.parse(ms.data);
+                    if(m.type === "iceCandidate"){
+                        conn.recieveIceCandidate(JSON.parse(m.data));
+                    }else if(m.type === "sdp"){
+                        const a = await conn.recieveOffer(JSON.parse(m.data));
+                        socket.send(JSON.stringify({
+                            type: "sdp",
+                            data: JSON.stringify(a)
+                        }));
+                    }else if(m.type === "peerDisconnect"){
+                        location.reload();
+                    }
+                })
+                await new Promise(r => {
+                    const connectInterval = setInterval(() => {
+                        if(socketConnected){
+                            clearInterval(connectInterval);
+                            r();
+                        }
+                    }, 200)
+                });
+                conn = new Connection({
+                    iceServers: [
+                        {
+                            urls: "stun:stun.l.google.com:19302"
+                        }
+                    ]
+                });
+                conn.addEventListener("allcandidatesdiscovered", e => {
+                    e.candidates.forEach(c => {
+                       socket.send(JSON.stringify({
+                           type: "iceCandidate",
+                           data: JSON.stringify(c)
+                       }))
+                    });
+                });
+                conn.addEventListener("connectionstatechange", () => {
+                    const l = document.createElement("LI");
+                    l.textContent = "Connection state changed to " + conn.connectionState;
+                    document.querySelector("#thread").append(l);
+                    if(conn.connectionState === "connected"){
+                        document.querySelector("#send").removeAttribute("disabled");
+                    }else{
+                        document.querySelector("#send").setAttribute("disabled", "disabled");
+                    }
+                });
+                conn.addEventListener("pingchange", e => {
+                    document.querySelector("#ping").textContent = e.ping;
+                });
+                conn.init();
+                conn.addEventListener("datachannel", e => {
+                    dat = e.channel;
+                    dat.addEventListener("message", e => {
+                        const l = document.createElement("LI");
+                        l.textContent = "Remote User: " + e.message;
+                        document.querySelector("#thread").append(l);
+                    });
+                });
+                document.querySelector("#send").addEventListener("click", () => {
+                    dat.send(document.querySelector("#message").value);
+                    const l = document.createElement("LI");
+                    l.textContent = "You: " + document.querySelector("#message").value;
+                    document.querySelector("#thread").append(l);
+                    document.querySelector("#message").value = "";
+                });
+                document.querySelector("#join").addEventListener("click", () => {
+                    socket.send(JSON.stringify({
+                        type: "join",
+                        data: document.querySelector("#id").value
+                    }));
+                });
+            });
+        </script>
+    </body>
+</html>

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Client A - YAWW Video Demo</title>
+    </head>
+    <body>
+        <h2>Client A - YAWW Video Demo</h2>
+        <p>Paste this offer in the offer box on <a href="./b.html" target="_blank">the other page</a>:</p>
+        <textarea rows="2" cols="50" id="offer" readonly></textarea>
+        <hr>
+        <p>Paste the answer from the other page here:</p>
+        <textarea rows="2" cols="50" id="answer"></textarea>
+        <br>
+        <button id="submitAnswer">Submit</button>
+        <hr>
+        <p>Paste these ICE candidates on the other page:</p>
+        <textarea rows="2" cols="50" id="localCandidates" readonly></textarea>
+        <hr>
+        <p>Paste the ICE candidates from the other page here:</p>
+        <textarea rows="2" cols="50" id="remoteCandidates"></textarea>
+        <br>
+        <button id="submitCandidates">Submit</button>
+        <hr>
+        <p>Ping: <span id="ping"></span></p>
+        <video id="localVideo" width="320" height="240" muted></video>
+        <video id="remoteVideo" width="320" height="240"></video>
+        <script src="../../src/yaww.js"></script>
+        <script>
+            var conn, dat;
+            window.addEventListener("load", async () => {
+                conn = new Connection();
+                conn.addEventListener("allcandidatesdiscovered", e => {
+                    e.candidates.forEach(c => {
+                        document.querySelector("#localCandidates").value += JSON.stringify(c.toJSON()) + "\n\n";
+                    });
+                });
+                conn.addEventListener("streamadded", e => {
+                    document.querySelector("#remoteVideo").srcObject = e.stream;
+                });
+                conn.addEventListener("pingchange", e => {
+                    document.querySelector("#ping").textContent = e.ping;
+                });
+                conn.addEventListener("connectionstatechange", () => {
+                    if(conn.connectionState === "connected"){
+                        document.querySelector("#submitAnswer").setAttribute("disabled", "disabled");
+                    }else if(conn.connectionState === "awaiting-answer"){
+                        document.querySelector("#submitAnswer").removeAttribute("disabled");
+                    }else{
+                        document.querySelector("#submitAnswer").setAttribute("disabled", "disabled");
+                    }
+                });
+                const userMedia = await navigator.mediaDevices.getUserMedia({
+                    audio: true,
+                    video: {
+                        width: {
+                            ideal: 320
+                        },
+                        height: {
+                            ideal: 240
+                        },
+                        facingMode: "user"
+                    }
+                });
+                conn.init();
+                conn.addStream(userMedia);
+                document.querySelector("#localVideo").srcObject = userMedia;
+                document.querySelector("#localVideo").addEventListener("loadedmetadata", e => {
+                    e.target.play();
+                });
+                document.querySelector("#remoteVideo").addEventListener("loadedmetadata", e => {
+                    e.target.play();
+                });
+                document.querySelector("#submitAnswer").addEventListener("click", () => {
+                    conn.recieveAnswer(JSON.parse(document.querySelector("#answer").value));
+                });
+                document.querySelector("#submitCandidates").addEventListener("click", () => {
+                    document.querySelector("#remoteCandidates").value.split("\n\n").filter(i => i.length).forEach(c => {
+                        conn.recieveIceCandidate(JSON.parse(c));
+                    });
+                });
+                document.querySelector("#offer").value = JSON.stringify(await conn.offer());
+            });
+        </script>
+    </body>
+</html>

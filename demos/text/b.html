@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Client B - YAWW Demo</title>
+    </head>
+    <body>
+        <h2>Client B - YAWW Demo</h2>
+        <p>Paste the offer from <a href="./a.html" target="_blank">the other page</a> here:</p>
+        <textarea rows="2" cols="50" id="offer"></textarea>
+        <br>
+        <button id="submitOffer">Submit</button>
+        <hr>
+        <p>Paste this answer in the answer box on the other page:</p>
+        <textarea rows="2" cols="50" id="answer" readonly></textarea>
+        <hr>
+        <p>Paste these ICE candidates on the other page:</p>
+        <textarea rows="2" cols="50" id="localCandidates" readonly></textarea>
+        <hr>
+        <p>Paste the ICE candidates from the other page here:</p>
+        <textarea rows="2" cols="50" id="remoteCandidates"></textarea>
+        <br>
+        <button id="submitCandidates">Submit</button>
+        <hr>
+        <p>Ping: <span id="ping"></span></p>
+        <p>
+            <input type="text" id="message"> <button id="send">Send</button>
+        </p>
+        <ul id="thread"></ul>
+        <script src="../../src/yaww.js"></script>
+        <script>
+            var conn, dat;
+            window.addEventListener("load", async () => {
+                conn = new Connection();
+                conn.addEventListener("allcandidatesdiscovered", e => {
+                    e.candidates.forEach(c => {
+                        document.querySelector("#localCandidates").value += JSON.stringify(c.toJSON()) + "\n\n";
+                    });
+                });
+                conn.addEventListener("connectionstatechange", () => {
+                    const l = document.createElement("LI");
+                    l.textContent = "Connection state changed to " + conn.connectionState;
+                    document.querySelector("#thread").append(l);
+                    if(conn.connectionState === "connected"){
+                        document.querySelector("#send").removeAttribute("disabled");
+                        document.querySelector("#submitOffer").setAttribute("disabled", "disabled");
+                    }else if(conn.connectionState === "awaiting-offer"){
+                        document.querySelector("#send").setAttribute("disabled", "disabled");
+                        document.querySelector("#submitOffer").removeAttribute("disabled");
+                    }else{
+                        document.querySelector("#send").setAttribute("disabled", "disabled");
+                        document.querySelector("#submitOffer").setAttribute("disabled", "disabled");
+                    }
+                });
+                conn.addEventListener("pingchange", e => {
+                    document.querySelector("#ping").textContent = e.ping;
+                });
+                conn.addEventListener("datachannel", e => {
+                    dat = e.channel;
+                    dat.addEventListener("message", e => {
+                        const l = document.createElement("LI");
+                        l.textContent = "A: " + e.message;
+                        document.querySelector("#thread").append(l);
+                    });
+                });
+                conn.init();
+                document.querySelector("#submitOffer").addEventListener("click", async () => {
+                    document.querySelector("#answer").value = JSON.stringify(await conn.recieveOffer(JSON.parse(document.querySelector("#offer").value)));
+                });
+                document.querySelector("#submitCandidates").addEventListener("click", () => {
+                    document.querySelector("#remoteCandidates").value.split("\n\n").filter(i => i.length).forEach(c => {
+                        conn.recieveIceCandidate(JSON.parse(c));
+                    })
+                })
+                document.querySelector("#send").addEventListener("click", () => {
+                    dat.send(document.querySelector("#message").value);
+                    const l = document.createElement("LI");
+                    l.textContent = "B: " + document.querySelector("#message").value;
+                    document.querySelector("#thread").append(l);
+                    document.querySelector("#message").value = "";
+                });
+            });
+        </script>
+    </body>
+</html>

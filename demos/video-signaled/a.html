@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Client A - YAWW Demo</title>
+    </head>
+    <body>
+        <h2>Client A - YAWW Demo</h2>
+        <p>Your ID is <b id="id"></b></p>
+        <p>Ping: <span id="ping"></span></p>
+        <video id="localVideo" width="320" height="240" muted></video>
+        <video id="remoteVideo" width="320" height="240"></video>
+        <script src="../../src/yaww.js"></script>
+        <script>
+            var conn, dat, socket;
+            var socketConnected = false;
+            window.addEventListener("load", async () => {
+                socket = new WebSocket("ws://localhost:7071");
+                socket.addEventListener("open", () => {
+                    socketConnected = true;
+                });
+                socket.addEventListener("message", ms => {
+                    const m = JSON.parse(ms.data);
+                    if(m.type === "iceCandidate"){
+                        conn.recieveIceCandidate(JSON.parse(m.data));
+                    }else if(m.type === "sdp"){
+                        conn.recieveAnswer(JSON.parse(m.data));
+                    }else if(m.type === "id"){
+                        document.querySelector("#id").textContent = m.data;
+                    }else if(m.type === "peerDisconnect"){
+                        location.reload();
+                    }
+                })
+                await new Promise(r => {
+                    const connectInterval = setInterval(() => {
+                        if(socketConnected){
+                            clearInterval(connectInterval);
+                            r();
+                        }
+                    }, 200)
+                });
+                conn = new Connection({
+                    iceServers: [
+                        {
+                            urls: "stun:stun.l.google.com:19302"
+                        }
+                    ]
+                });
+                conn.addEventListener("allcandidatesdiscovered", e => {
+                    e.candidates.forEach(c => {
+                       socket.send(JSON.stringify({
+                           type: "iceCandidate",
+                           data: JSON.stringify(c)
+                       }))
+                    });
+                });
+                conn.addEventListener("pingchange", e => {
+                    document.querySelector("#ping").textContent = e.ping;
+                });
+                conn.addEventListener("streamadded", e => {
+                    document.querySelector("#remoteVideo").srcObject = e.stream;
+                });
+                const userMedia = await navigator.mediaDevices.getUserMedia({
+                    audio: true,
+                    video: {
+                        width: {
+                            ideal: 320
+                        },
+                        height: {
+                            ideal: 240
+                        },
+                        facingMode: "user"
+                    }
+                });
+                conn.init();
+                conn.addStream(userMedia);
+                document.querySelector("#localVideo").srcObject = userMedia;
+                document.querySelector("#localVideo").addEventListener("loadedmetadata", e => {
+                    e.target.play();
+                });
+                document.querySelector("#remoteVideo").addEventListener("loadedmetadata", e => {
+                    e.target.play();
+                });
+                socket.send(JSON.stringify({
+                    type: "sdp",
+                    data: JSON.stringify(await conn.offer())
+                }));
+            });
+        </script>
+    </body>
+</html>
