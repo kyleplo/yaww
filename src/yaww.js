@@ -139,7 +139,7 @@ class Connection extends EventTarget {
         this._queuedCandidates = [];
     }
 
-    static signalingStates = {
+    static _signalingStates = {
         "closed": "closed",
         "have-local-offer": "awaiting-answer",
         "have-remote-offer": "negotiating",
@@ -258,10 +258,10 @@ class Connection extends EventTarget {
                     this.connectionState = "awaiting-offer"
                 }
             }else{
-                if(this.connectionState === Connection.signalingStates[this._rtc.signalingState]){
+                if(this.connectionState === Connection._signalingStates[this._rtc.signalingState]){
                     return;
                 }
-                this.connectionState = Connection.signalingStates[this._rtc.signalingState];
+                this.connectionState = Connection._signalingStates[this._rtc.signalingState];
                 if(this.connectionState === "closed"){
                     this.close(true);
                 }
