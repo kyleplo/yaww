@@ -27,9 +27,10 @@ class AllCandidatesDiscoveredEvent extends Event {
 }
 
 class DataChannelEvent extends Event {
-    constructor (v) {
+    constructor (v, r) {
         super("datachannel");
         this.channel = v;
+        this.remote = r;
     }
 }
 
@@ -186,7 +187,7 @@ class Connection extends EventTarget {
                     this._remotePingChannel = null;
                 });
             }else{
-                super.dispatchEvent(new DataChannelEvent(new DataChannel(e.channel, this)));
+                super.dispatchEvent(new DataChannelEvent(new DataChannel(e.channel, this), true));
             }
         });
         this._rtc.addEventListener("negotiationneeded", () => {
@@ -437,7 +438,7 @@ class Connection extends EventTarget {
         }
 
         const d = new DataChannel(this._rtc.createDataChannel(l || Connection.generateRandomId()), this);
-        super.dispatchEvent(new DataChannelEvent(d));
+        super.dispatchEvent(new DataChannelEvent(d, false));
         return d;
     }
 
