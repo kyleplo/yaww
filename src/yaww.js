@@ -389,8 +389,10 @@ class Connection extends EventTarget {
     }
 
     async offer (n) {
-        if(this.connectionState !== "awaiting-offer"){
+        if(this.connectionState !== "awaiting-offer" && !n){
             throw "YAWWError: Connection generate offer.";
+        }else if(!this._rtc){
+            throw "YAWWError: Connection not initialized."
         }
 
         const o = await this._rtc.createOffer({
