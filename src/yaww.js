@@ -152,6 +152,22 @@ class Connection extends EventTarget {
         return Date.now().toString(36).slice(-6) + Math.random().toString(36).slice(-6);
     }
 
+    static _fixSessionDescription(desc){
+        if(desc instanceof RTCSessionDescription){
+            return desc;
+        }else{
+            return new RTCSessionDescription(desc);
+        }
+    }
+
+    static _fixIceCandidate(candidate){
+        if(candidate instanceof RTCIceCandidate){
+            return candidate;
+        }else{
+            return new RTCIceCandidate(candidate);
+        }
+    }
+
     init () {
         if(this.connectionState !== "closed"){
             throw "YAWWError: Connection already open.";
@@ -409,7 +425,7 @@ class Connection extends EventTarget {
             throw "YAWWError: Connection closed.";
         }
 
-        await this._rtc.setRemoteDescription(new RTCSessionDescription(offer));
+        await this._rtc.setRemoteDescription(Connection._fixSessionDescription(offer));
         const a = await this._rtc.createAnswer();
         await this._rtc.setLocalDescription(a);
         super.dispatchEvent(new AnswerEvent(a));
@@ -421,14 +437,14 @@ class Connection extends EventTarget {
             throw "YAWWError: Connection cannot accept answer.";
         }
 
-        await this._rtc.setRemoteDescription(answer);
+        await this._rtc.setRemoteDescription(Connection._fixSessionDescription(answer));
     }
 
     async receiveIceCandidate (candidate) {
         if(this.connectionState !== "negotiating" && this.connectionState !== "connected"){
-            this._queuedCandidates.push(new RTCIceCandidate(candidate));``
+            this._queuedCandidates.push(Connection._fixIceCandidate(candidate));``
         }else{
-            await this._rtc.addIceCandidate(new RTCIceCandidate(candidate));
+            await this._rtc.addIceCandidate(Connection._fixIceCandidate(candidate));
         }
     }
 
