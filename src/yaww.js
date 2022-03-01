@@ -1,89 +1,89 @@
 class ConnectionStateChangeEvent extends Event {
-    constructor (v) {
+    constructor (connectionState) {
         super("connectionstatechange");
-        this.connectionState = v;
+        this.connectionState = connectionState;
     }
 }
 
 class MessageEvent extends Event {
-    constructor (v) {
+    constructor (message) {
         super("message");
-        this.message = v;
+        this.message = message;
     }
 }
 
 class CandidateDiscoveredEvent extends Event {
-    constructor (v) {
+    constructor (candidate) {
         super("candidatediscovered");
-        this.candidate = v;
+        this.candidate = candidate;
     }
 }
 
 class AllCandidatesDiscoveredEvent extends Event {
-    constructor (v) {
+    constructor (candidates) {
         super("allcandidatesdiscovered");
-        this.candidates = v;
+        this.candidates = candidates;
     }
 }
 
 class DataChannelEvent extends Event {
-    constructor (v, r) {
+    constructor (channel, remote) {
         super("datachannel");
-        this.channel = v;
-        this.remote = r;
+        this.channel = channel;
+        this.remote = remote;
     }
 }
 
 class NegotiateEvent extends Event {
-    constructor (v) {
+    constructor () {
         super("negotiate", {cancelable: true});
     }
 }
 
 class StreamAddedEvent extends Event {
-    constructor (v) {
+    constructor (stream) {
         super("streamadded");
-        this.stream = v;
+        this.stream = stream;
     }
 }
 
 class AnswerEvent extends Event {
-    constructor (v) {
+    constructor (answer) {
         super("answer");
-        this.answer = v;
+        this.answer = answer;
     }
 }
 
 class OfferEvent extends Event {
-    constructor (v) {
+    constructor (offer) {
         super("offer");
-        this.offer = v;
+        this.offer = offer;
     }
 }
 
 class PingChangeEvent extends Event {
-    constructor (v) {
+    constructor (ping) {
         super("pingchange");
-        this.ping = v;
+        this.ping = ping;
     }
 }
 
 class IceCandidateErrorEvent extends Event {
-    constructor (v) {
+    constructor (error) {
         super("icecandidateerror");
-        this.address = v.address || null;
-        this.errorCode = v.errorCode || null;
-        this.errorText = v.errorText || null;
-        this.port = v.port || null;
-        this.url = v.url || null;
+        this.address = error.address || null;
+        this.errorCode = error.errorCode || null;
+        this.errorText = error.errorText || null;
+        this.port = error.port || null;
+        this.url = error.url || null;
     }
 }
 
 class DataChannel extends EventTarget {
-    constructor (d, p) {
+    constructor (dataChannel, parentConnection) {
         super();
-        this._dat = d;
-        this._parentConnection = p;
+        this._dat = dataChannel;
+        this._parentConnection = parentConnection;
         this.connectionState = "closed";
         this.label = d.label;
 
@@ -104,12 +104,12 @@ class DataChannel extends EventTarget {
         });
     }
 
-    send (d) {
+    send (message) {
         if(this.connectionState !== "open"){
             throw "YAWWError: Data channel not open."
         }
 
-        this._dat.send(d);
+        this._dat.send(message);
     }
 
     close () {
@@ -122,14 +122,14 @@ class DataChannel extends EventTarget {
 }
 
 class Connection extends EventTarget {
-    constructor (c) {
+    constructor (config) {
         super();
         this.connectionState = "closed";
         this._config = Object.assign({
             rtc: {},
             pingInterval: 1000,
             disconnectTimeout: 1500
-        }, c);
+        }, config);
         this.ping = null;
         this._disconnectTimer = null;
         this._hasAllCandidates = false;
@@ -344,41 +344,41 @@ class Connection extends EventTarget {
         this._queuedCandidates = [];
     }
 
-    addTrack (t, s) {
+    addTrack (track, stream) {
         if(!this._rtc){
             throw "YAWWError: Connection not initialized.";
         }
 
-        return this._rtc.addTrack(t, s);
+        return this._rtc.addTrack(track, stream);
     }
 
-    removeTrack (t) {
+    removeTrack (track) {
         if(!this._rtc){
             throw "YAWWError: Connection not initialized.";
         }
 
-        this._rtc.removeTrack(t);
+        this._rtc.removeTrack(track);
     }
 
-    addStream (s) {
+    addStream (stream) {
         if(!this._rtc){
             throw "YAWWError: Connection not initialized.";
         }
 
         var r = [];
-        s.getTracks().forEach(t => {
+        stream.getTracks().forEach(t => {
             r.push(this.addTrack(t, s));
         });
         return r;
     }
 
-    removeStream (s) {
+    removeStream (stream) {
         if(!this._rtc){
             throw "YAWWError: Connection not initialized.";
         }
 
         var i = [];
-        s.getTracks().forEach(t => {
+        stream.getTracks().forEach(t => {
             i.push(t.id);
         });
 
@@ -389,7 +389,7 @@ class Connection extends EventTarget {
         });
     }
 
-    async offer (n) {
+    async offer (renegotiate) {
         if(this.connectionState !== "awaiting-offer" && !n){
             throw "YAWWError: Connection generate offer.";
         }else if(!this._rtc){
@@ -397,53 +397,53 @@ class Connection extends EventTarget {
         }
 
         const o = await this._rtc.createOffer({
-            iceRestart: n
+            iceRestart: renegotiate
         });
         await this._rtc.setLocalDescription(o);
         super.dispatchEvent(new OfferEvent(o));
         return o;
     }
 
-    async receiveOffer (o) {
+    async receiveOffer (offer) {
         if(this.connectionState === "closed"){
             throw "YAWWError: Connection closed.";
         }
 
-        await this._rtc.setRemoteDescription(new RTCSessionDescription(o));
+        await this._rtc.setRemoteDescription(new RTCSessionDescription(offer));
         const a = await this._rtc.createAnswer();
         await this._rtc.setLocalDescription(a);
         super.dispatchEvent(new AnswerEvent(a));
         return a;
     }
 
-    async receiveAnswer (a) {
+    async receiveAnswer (answer) {
         if(this.connectionState !== "awaiting-answer"){
             throw "YAWWError: Connection cannot accept answer.";
         }
 
-        await this._rtc.setRemoteDescription(a);
+        await this._rtc.setRemoteDescription(answer);
     }
 
-    async receiveIceCandidate (c) {
+    async receiveIceCandidate (candidate) {
         if(this.connectionState !== "negotiating" && this.connectionState !== "connected"){
-            this._queuedCandidates.push(new RTCIceCandidate(c));``
+            this._queuedCandidates.push(new RTCIceCandidate(candidate));``
         }else{
-            await this._rtc.addIceCandidate(new RTCIceCandidate(c));
+            await this._rtc.addIceCandidate(new RTCIceCandidate(candidate));
         }
     }
 
-    createDataChannel (l) {
+    createDataChannel (label) {
         if(this.connectionState === "closed"){
             throw "YAWWError: Connection closed.";
         }
 
-        const d = new DataChannel(this._rtc.createDataChannel(l || Connection.generateRandomId()), this);
+        const d = new DataChannel(this._rtc.createDataChannel(label || Connection.generateRandomId()), this);
         super.dispatchEvent(new DataChannelEvent(d, false));
         return d;
     }
 
-    close (_s) {
-        if(this.connectionState === "closed" && !_s){
+    close (_silent) {
+        if(this.connectionState === "closed" && !_silent){
             throw "YAWWError: Connection already closed.";
         }
 
