@@ -14,7 +14,7 @@
             var conn, dat, socket;
             var socketConnected = false;
             window.addEventListener("load", async () => {
-                socket = new WebSocket("ws://localhost:7071");
+                socket = new WebSocket("ws://" + location.hostname + ":7071");
                 socket.addEventListener("message", async ms => {
                     const m = JSON.parse(ms.data);
                     if(m.type === "iceCandidate"){
