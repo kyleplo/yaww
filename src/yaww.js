@@ -85,7 +85,7 @@ class DataChannel extends EventTarget {
         this._dat = dataChannel;
         this._parentConnection = parentConnection;
         this.connectionState = "closed";
-        this.label = d.label;
+        this.label = dataChannel.label;
 
         this._dat.addEventListener("message", e => {
             super.dispatchEvent(new MessageEvent(e.data));
@@ -383,7 +383,7 @@ class Connection extends EventTarget {
 
         var r = [];
         stream.getTracks().forEach(t => {
-            r.push(this.addTrack(t, s));
+            r.push(this.addTrack(t, stream));
         });
         return r;
     }
