@@ -90,8 +90,6 @@ The `text` and `video` demos can be opened directly in the browser, without a si
 
 The `text-signaled` and `video-signaled` demos include a simple signaling server written in Node.js using WebSockets. You'll need to run that server, but the pages themselves don't need a server.
 
-You may need to change the address of the WebSocket server if you aren't using `localhost:`.
-
 Note that the demos that use video require a secure context. This includes `file:` and `localhost:` in most browsers, but won't work across devices using just your IP address, unless you either set up an SSL certificate or use a forwarding/tunneling server.
 
 ## Maintenance
