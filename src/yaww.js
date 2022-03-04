@@ -92,21 +92,21 @@ class DataChannel extends EventTarget {
         });
         this._dat.addEventListener("open", () => {
             this.connectionState = "open";
-            super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState), "connected");
+            super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState, "connected"));
         });
         this._dat.addEventListener("close", () => {
             if(this.connectionState === "closed"){
                 return;
             }
             this.connectionState = "closed";
-            super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState), "disconnected");
+            super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState, "disconnected"));
         });
         this._dat.addEventListener("error", () => {
             if(this.connectionState === "closed"){
                 return;
             }
             this.connectionState = "closed";
-            super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState), "error");
+            super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState, "error"));
             this.close();
         });
     }
@@ -243,13 +243,13 @@ class Connection extends EventTarget {
                     return;
                 }
                 this.connectionState = "connected";
-                super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState), "connected");
+                super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState, "connected"));
             }else if(this._rtc.iceConnectionState === "failed"){
                 if(this.connectionState === "closed"){
                     return;
                 }
                 this.connectionState = "closed"
-                super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState), "ice-failed");
+                super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState, "ice-failed"));
                 this.close(true);
             }else if(this._rtc.iceConnectionState === "closed" || this._rtc.iceConnectionState === "disconnected"){
                 this.close(true);
@@ -259,7 +259,7 @@ class Connection extends EventTarget {
             if(!this._rtc){
                 if(this.connectionState !== "closed"){
                     this.connectionState = "closed";
-                    super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState), "disconnected");
+                    super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState, "disconnected"));
                 }
                 return;
             }
@@ -294,7 +294,7 @@ class Connection extends EventTarget {
                     this._useQueuedCandidates();
                 }
             }
-            super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState), (this.connectionState === "closed" ? "disconnected" : "signaling"));
+            super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState, (this.connectionState === "closed" ? "disconnected" : "signaling")));
         });
         if("RTCPeerConnectionIceErrorEvent" in window){
             this._rtc.addEventListener("icecandidateerror", e => {
@@ -311,7 +311,7 @@ class Connection extends EventTarget {
             return;
         }
         this.connectionState = "awaiting-offer";
-        super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState), "signaling");
+        super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState, "signaling"));
     }
 
     _setupPingChannel () {
@@ -326,7 +326,7 @@ class Connection extends EventTarget {
             this._disconnectTimer = setTimeout(() => {
                 if(this.connectionState !== "closed"){
                     this.connectionState = "closed";
-                    super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState), "timeout");
+                    super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState, "timeout"));
                 }
                 this.close(true);
             }, this._config.disconnectTimeout);
@@ -342,7 +342,7 @@ class Connection extends EventTarget {
                     this._disconnectTimer = setTimeout(() => {
                         if(this.connectionState !== "closed"){
                             this.connectionState = "closed";
-                            super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState), "timeout");
+                            super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState, "timeout"));
                         }
                         this.close(true);
                     }, this._config.disconnectTimeout);
@@ -357,7 +357,7 @@ class Connection extends EventTarget {
             super.dispatchEvent(new PingChangeEvent(this.ping));
             if(this.connectionState !== "closed"){
                 this.connectionState = "closed";
-                super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState), "internal-disconnected");
+                super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState, "internal-disconnected"));
             }
             this.close(true);
         });
@@ -367,7 +367,7 @@ class Connection extends EventTarget {
             super.dispatchEvent(new PingChangeEvent(this.ping));
             if(this.connectionState !== "closed"){
                 this.connectionState = "closed";
-                super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState), "internal-error");
+                super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState, "internal-error"));
             }
             this.close(true);
         });
@@ -513,7 +513,7 @@ class Connection extends EventTarget {
         
         if(this.connectionState !== "closed"){
             this.connectionState = "closed";
-            super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState), "disconnected");
+            super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState, "disconnected"));
         }
     }
 }
