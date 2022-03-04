@@ -57,11 +57,11 @@
                        }))
                     });
                 });
-                conn.addEventListener("connectionstatechange", () => {
+                conn.addEventListener("connectionstatechange", e => {
                     const l = document.createElement("LI");
-                    l.textContent = "Connection state changed to " + conn.connectionState;
+                    l.textContent = "Connection state changed to " + e.connectionState + " (" + e.reason + ")";
                     document.querySelector("#thread").append(l);
-                    if(conn.connectionState === "connected"){
+                    if(e.connectionState === "connected"){
                         document.querySelector("#send").removeAttribute("disabled");
                     }else{
                         document.querySelector("#send").setAttribute("disabled", "disabled");
