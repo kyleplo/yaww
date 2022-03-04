@@ -107,7 +107,7 @@ class DataChannel extends EventTarget {
             }
             this.connectionState = "closed";
             super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState, "error"));
-            this.close();
+            this.close(true);
         });
     }
 
@@ -119,8 +119,11 @@ class DataChannel extends EventTarget {
         this._dat.send(message);
     }
 
-    close () {
+    close (_s) {
         if(this.connectionState !== "open"){
+            if(_s){
+                return;
+            }
             throw "YAWWError: Data channel not open."
         }
 
@@ -230,6 +233,9 @@ class Connection extends EventTarget {
             }
         });
         this._rtc.addEventListener("iceconnectionstatechange", () => {
+            if(!this._rtc){
+                return;
+            }
             if(this._rtc.iceConnectionState === "connected" || this._rtc.iceConnectionState === "complete"){
                 if(this._rtc.iceConnectionState === "complete" && !this._hasAllCandidates){
                     super.dispatchEvent(new AllCandidatesDiscoveredEvent(this._candidates));
