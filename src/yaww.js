@@ -81,11 +81,12 @@ class IceCandidateErrorEvent extends Event {
 }
 
 class DataChannel extends EventTarget {
-    constructor (dataChannel) {
+    constructor (dataChannel, remote) {
         super();
         this._dat = dataChannel;
         this.connectionState = "closed";
         this.label = dataChannel.label;
+        this.remote = remote;
 
         this._dat.addEventListener("message", e => {
             super.dispatchEvent(new MessageEvent(e.data));
@@ -205,7 +206,7 @@ class Connection extends EventTarget {
                     this.close(true);
                 });
             }else{
-                super.dispatchEvent(new DataChannelEvent(new DataChannel(e.channel), true));
+                super.dispatchEvent(new DataChannelEvent(new DataChannel(e.channel, true), true));
             }
         });
         this._rtc.addEventListener("negotiationneeded", () => {
@@ -465,7 +466,7 @@ class Connection extends EventTarget {
             throw Connection._libName + "Error: Connection closed.";
         }
 
-        const d = new DataChannel(this._rtc.createDataChannel(label || Connection.generateRandomId()));
+        const d = new DataChannel(this._rtc.createDataChannel(label || Connection.generateRandomId()), false);
         super.dispatchEvent(new DataChannelEvent(d, false));
         return d;
     }
