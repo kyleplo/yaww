@@ -101,19 +101,11 @@ class DataChannel extends EventTarget {
             this.connectionState = "closed";
             super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState, "disconnected"));
         });
-        this._dat.addEventListener("error", () => {
-            if(this.connectionState === "closed"){
-                return;
-            }
-            this.connectionState = "closed";
-            super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState, "error"));
-            this.close(true);
-        });
     }
 
     send (message) {
         if(this.connectionState !== "open"){
-            throw "YAWWError: Data channel not open."
+            throw Connection._libName + "Error: Data channel not open."
         }
 
         this._dat.send(message);
@@ -124,7 +116,7 @@ class DataChannel extends EventTarget {
             if(_s){
                 return;
             }
-            throw "YAWWError: Data channel not open."
+            throw Connection._libName + "Error: Data channel not open."
         }
 
         this._dat.close();
@@ -143,12 +135,14 @@ class Connection extends EventTarget {
         this.ping = null;
         this._disconnectTimer = null;
         this._hasAllCandidates = false;
-        this._localPingChannel = null;
-        this._remotePingChannel = null;
+        this._localInternalChannel = null;
+        this._remoteInternalChannel = null;
         this._lastPing = null;
         this._candidates = [];
         this._queuedCandidates = [];
     }
+
+    static _libName = "YAWW"
 
     static _signalingStates = {
         "closed": "closed",
@@ -180,7 +174,7 @@ class Connection extends EventTarget {
 
     init () {
         if(this.connectionState !== "closed"){
-            throw "YAWWError: Connection already open.";
+            throw Connection._libName + "Error: Connection already open.";
         }
 
         this._rtc = new RTCPeerConnection(this._config.rtc);
@@ -194,23 +188,21 @@ class Connection extends EventTarget {
             }
         });
         this._rtc.addEventListener("datachannel", e => {
-            if(e.channel.label.startsWith("ping-")){
-                if(this._remotePingChannel){
-                    throw "YAWWError: Multiple remote ping channels received."
+            if(e.channel.label.startsWith(Connection._libName + "-")){
+                if(this._remoteInternalChannel){
+                    throw Connection._libName + "Error: Multiple remote internal channels received."
                 }
-                this._remotePingChannel = e.channel;
-                this._remotePingChannel.addEventListener("message", e => {
+                this._remoteInternalChannel = e.channel;
+                this._remoteInternalChannel.addEventListener("message", e => {
                     e.target.send("pong");
                 });
-                this._remotePingChannel.addEventListener("close", () => {
-                    this._remotePingChannel = null;
-                    this.close(true);
-                });
-                this._remotePingChannel.addEventListener("error", e => {
-                    if(e.target.readyState !== "closing" && e.target.readyState !== "closed"){
-                        e.target.close();
+                this._remoteInternalChannel.addEventListener("close", () => {
+                    this._remoteInternalChannel = null;
+                    if(this.connectionState !== "closed"){
+                        this.connectionState = "closed";
+                        super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState, "internal-disconnected"));
                     }
-                    this._remotePingChannel = null;
+                    this.close(true);
                 });
             }else{
                 super.dispatchEvent(new DataChannelEvent(new DataChannel(e.channel), true));
@@ -241,8 +233,8 @@ class Connection extends EventTarget {
                     super.dispatchEvent(new AllCandidatesDiscoveredEvent(this._candidates));
                     this._hasAllCandidates = true;
                 }
-                if(!this._localPingChannel){
-                    this._setupPingChannel();
+                if(!this._localInternalChannel){
+                    this._initLocalInternalChannel();
                 }
                 this._useQueuedCandidates();
                 if(this.connectionState === "connected"){
@@ -310,8 +302,8 @@ class Connection extends EventTarget {
         }else{
             console.warn("RTCPeerConnectionIceErrorEvent is unsupported, STUN/TURN errors will go undetected.");
         }
-        if(!this._localPingChannel){
-            this._setupPingChannel();
+        if(!this._localInternalChannel){
+            this._initLocalInternalChannel();
         }
         if(this.connectionState === "awaiting-offer"){
             return;
@@ -320,13 +312,13 @@ class Connection extends EventTarget {
         super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState, "signaling"));
     }
 
-    _setupPingChannel () {
-        if(this._localPingChannel){
-            throw "YAWWError: Ping channel already exists."
+    _initLocalInternalChannel () {
+        if(this._localInternalChannel){
+            throw Connection._libName + "Error: Internal channel already exists."
         }
 
-        this._localPingChannel = this._rtc.createDataChannel("ping-" + Connection.generateRandomId());
-        this._localPingChannel.addEventListener("open", e => {
+        this._localInternalChannel = this._rtc.createDataChannel(Connection._libName + "-" + Connection.generateRandomId());
+        this._localInternalChannel.addEventListener("open", e => {
             this._lastPing = Date.now();
             e.target.send("ping");
             this._disconnectTimer = setTimeout(() => {
@@ -337,7 +329,7 @@ class Connection extends EventTarget {
                 this.close(true);
             }, this._config.disconnectTimeout);
         });
-        this._localPingChannel.addEventListener("message", e => {
+        this._localInternalChannel.addEventListener("message", e => {
             clearTimeout(this._disconnectTimer);
             this.ping = Date.now() - this._lastPing;
             super.dispatchEvent(new PingChangeEvent(this.ping));
@@ -357,8 +349,8 @@ class Connection extends EventTarget {
                 }
             }, this._config.pingInterval);
         });
-        this._localPingChannel.addEventListener("close", () => {
-            this._localPingChannel = null;
+        this._localInternalChannel.addEventListener("close", () => {
+            this._localInternalChannel = null;
             this.ping = null;
             super.dispatchEvent(new PingChangeEvent(this.ping));
             if(this.connectionState !== "closed"){
@@ -367,21 +359,11 @@ class Connection extends EventTarget {
             }
             this.close(true);
         });
-        this._localPingChannel.addEventListener("error", e => {
-            this._localPingChannel = null;
-            this.ping = null;
-            super.dispatchEvent(new PingChangeEvent(this.ping));
-            if(this.connectionState !== "closed"){
-                this.connectionState = "closed";
-                super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState, "internal-error"));
-            }
-            this.close(true);
-        });
     }
 
     _useQueuedCandidates () {
         if(this.connectionState !== "connected" && this.connectionState !== "negotiating"){
-            throw "YAWWError: Connection cannot accept ice candidates"
+            throw Connection._libName + "Error: Connection cannot accept ice candidates"
         }
 
         this._queuedCandidates.forEach(c => {
@@ -392,7 +374,7 @@ class Connection extends EventTarget {
 
     addTrack (track, stream) {
         if(!this._rtc){
-            throw "YAWWError: Connection not initialized.";
+            throw Connection._libName + "Error: Connection not initialized.";
         }
 
         return this._rtc.addTrack(track, stream);
@@ -400,7 +382,7 @@ class Connection extends EventTarget {
 
     removeTrack (track) {
         if(!this._rtc){
-            throw "YAWWError: Connection not initialized.";
+            throw Connection._libName + "Error: Connection not initialized.";
         }
 
         this._rtc.removeTrack(track);
@@ -408,7 +390,7 @@ class Connection extends EventTarget {
 
     addStream (stream) {
         if(!this._rtc){
-            throw "YAWWError: Connection not initialized.";
+            throw Connection._libName + "Error: Connection not initialized.";
         }
 
         var r = [];
@@ -420,7 +402,7 @@ class Connection extends EventTarget {
 
     removeStream (stream) {
         if(!this._rtc){
-            throw "YAWWError: Connection not initialized.";
+            throw Connection._libName + "Error: Connection not initialized.";
         }
 
         var i = [];
@@ -436,10 +418,10 @@ class Connection extends EventTarget {
     }
 
     async offer (renegotiate) {
-        if(this.connectionState !== "awaiting-offer" && !n){
-            throw "YAWWError: Connection generate offer.";
+        if(this.connectionState !== "awaiting-offer" && !renegotiate){
+            throw Connection._libName + "Error: Connection generate offer.";
         }else if(!this._rtc){
-            throw "YAWWError: Connection not initialized."
+            throw Connection._libName + "Error: Connection not initialized."
         }
 
         const o = await this._rtc.createOffer({
@@ -452,7 +434,7 @@ class Connection extends EventTarget {
 
     async receiveOffer (offer) {
         if(this.connectionState === "closed"){
-            throw "YAWWError: Connection closed.";
+            throw Connection._libName + "Error: Connection closed.";
         }
 
         await this._rtc.setRemoteDescription(Connection._fixSessionDescription(offer));
@@ -464,7 +446,7 @@ class Connection extends EventTarget {
 
     async receiveAnswer (answer) {
         if(this.connectionState !== "awaiting-answer"){
-            throw "YAWWError: Connection cannot accept answer.";
+            throw Connection._libName + "Error: Connection cannot accept answer.";
         }
 
         await this._rtc.setRemoteDescription(Connection._fixSessionDescription(answer));
@@ -480,7 +462,7 @@ class Connection extends EventTarget {
 
     createDataChannel (label) {
         if(this.connectionState === "closed"){
-            throw "YAWWError: Connection closed.";
+            throw Connection._libName + "Error: Connection closed.";
         }
 
         const d = new DataChannel(this._rtc.createDataChannel(label || Connection.generateRandomId()));
@@ -490,7 +472,7 @@ class Connection extends EventTarget {
 
     close (_silent) {
         if(this.connectionState === "closed" && !_silent){
-            throw "YAWWError: Connection already closed.";
+            throw Connection._libName + "Error: Connection already closed.";
         }
 
         if(this.ping){
@@ -498,12 +480,12 @@ class Connection extends EventTarget {
             super.dispatchEvent(new PingChangeEvent(this.ping));
         }
 
-        if(this._localPingChannel && this._localPingChannel.readyState === "open"){
-            this._localPingChannel.close();
+        if(this._localInternalChannel && this._localInternalChannel.readyState === "open"){
+            this._localInternalChannel.close();
         }
 
-        if(this._remotePingChannel && this._remotePingChannel.readyState === "open"){
-            this._remotePingChannel.close();
+        if(this._remoteInternalChannel && this._remoteInternalChannel.readyState === "open"){
+            this._remoteInternalChannel.close();
         }
 
         if (this._rtc && this.connectionState !== "closed") {
@@ -511,8 +493,8 @@ class Connection extends EventTarget {
         }
 
         this._rtc = null;
-        this._localPingChannel = null;
-        this._remotePingChannel = null;
+        this._localInternalChannel = null;
+        this._remoteInternalChannel = null;
         this._candidates = [];
         this._queuedCandidates = [];
         this._hasAllCandidates = false;
