@@ -111,24 +111,24 @@ class DataChannel extends EventTarget {
         this._dat = dataChannel;
         this.label = dataChannel.label;
         this.remote = remote;
-        this.connectionState = "disconnected";
+        this.connectionState = "closed";
         this._lastConnectionStateChangeValue = "";
 
         this._dat.addEventListener("message", e => {
             super.dispatchEvent(new MessageEvent(e.data));
         });
         this._dat.addEventListener("open", () => {
-            this.connectionState = "connected";
-            super.dispatchEvent(new ConnectionStateChangeEvent("connected", "opened", this));
+            this.connectionState = "open";
+            super.dispatchEvent(new ConnectionStateChangeEvent("open", "opened", this));
         });
         this._dat.addEventListener("close", () => {
-            this.connectionState = "disconnected";
-            super.dispatchEvent(new ConnectionStateChangeEvent("disconnected", "closed", this));
+            this.connectionState = "closed";
+            super.dispatchEvent(new ConnectionStateChangeEvent("closed", "closed", this));
         });
     }
 
     send (message) {
-        if(this.connectionState !== "connected"){
+        if(this.connectionState !== "open"){
             throw Connection._libName + "Error: Data channel not open."
         }
 
@@ -136,7 +136,7 @@ class DataChannel extends EventTarget {
     }
 
     close (_s) {
-        if(this.connectionState !== "connected"){
+        if(this.connectionState !== "open"){
             if(_s){
                 return;
             }

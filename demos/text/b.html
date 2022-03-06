@@ -60,7 +60,7 @@
                         document.querySelector("#thread").append(l);
                     });
                     dat.addEventListener("connectionstatechange", e => {
-                        if(e.connectionState === "connected"){
+                        if(e.connectionState === "open"){
                             document.querySelector("#send").removeAttribute("disabled");
                         }else{
                             document.querySelector("#send").setAttribute("disabled", "disabled");
