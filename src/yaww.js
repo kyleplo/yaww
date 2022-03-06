@@ -281,7 +281,7 @@ class Connection extends EventTarget {
                 super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "negotiation-finished", this));
             }else if(this._rtc.iceConnectionState === "failed"){
                 this.signalingState = "closed"
-                super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "ice-failed", this));
+                super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "negotiation-failed", this));
                 this.close(true);
             }else if(this._rtc.iceConnectionState === "closed" || this._rtc.iceConnectionState === "disconnected"){
                 this.close(true);
@@ -331,7 +331,6 @@ class Connection extends EventTarget {
             this._initLocalInternalChannel();
         }
         this.signalingState = "awaiting-offer";
-        super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "init", this));
     }
 
     _initLocalInternalChannel () {
