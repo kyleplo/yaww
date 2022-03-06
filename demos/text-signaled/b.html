@@ -25,11 +25,7 @@
                     if(m.type === "iceCandidate"){
                         conn.receiveIceCandidate(JSON.parse(m.data));
                     }else if(m.type === "sdp"){
-                        const a = await conn.receiveOffer(JSON.parse(m.data));
-                        socket.send(JSON.stringify({
-                            type: "sdp",
-                            data: JSON.stringify(a)
-                        }));
+                        conn.receiveOffer(JSON.parse(m.data));
                     }else if(m.type === "peerDisconnect"){
                         location.reload();
                     }
@@ -48,6 +44,12 @@
                             urls: "stun:stun.l.google.com:19302"
                         }
                     ]
+                });
+                conn.addEventListener("answer", e => {
+                    socket.send(JSON.stringify({
+                        type: "sdp",
+                        data: JSON.stringify(e.answer)
+                    }));
                 });
                 conn.addEventListener("allcandidatesdiscovered", e => {
                     e.candidates.forEach(c => {

@@ -63,6 +63,12 @@
                 conn.addEventListener("pingchange", e => {
                     document.querySelector("#ping").textContent = e.ping;
                 });
+                conn.addEventListener("offer", e => {
+                    socket.send(JSON.stringify({
+                        type: "sdp",
+                        data: JSON.stringify(e.offer)
+                    }));
+                });
                 conn.init();
                 dat = conn.createDataChannel();
                 dat.addEventListener("message", e => {
@@ -77,6 +83,7 @@
                         document.querySelector("#send").setAttribute("disabled", "disabled");
                     }
                 });
+                conn.offer();
                 document.querySelector("#send").addEventListener("click", () => {
                     dat.send(document.querySelector("#message").value);
                     const l = document.createElement("LI");
@@ -84,10 +91,6 @@
                     document.querySelector("#thread").append(l);
                     document.querySelector("#message").value = "";
                 });
-                socket.send(JSON.stringify({
-                    type: "sdp",
-                    data: JSON.stringify(await conn.offer())
-                }));
             });
         </script>
     </body>

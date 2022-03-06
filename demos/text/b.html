@@ -67,9 +67,12 @@
                         }
                     });
                 });
+                conn.addEventListener("answer", e => {
+                    document.querySelector("#answer").value = JSON.stringify(e.answer);
+                });
                 conn.init();
-                document.querySelector("#submitOffer").addEventListener("click", async () => {
-                    document.querySelector("#answer").value = JSON.stringify(await conn.receiveOffer(JSON.parse(document.querySelector("#offer").value)));
+                document.querySelector("#submitOffer").addEventListener("click", () => {
+                    conn.receiveOffer(JSON.parse(document.querySelector("#offer").value));
                 });
                 document.querySelector("#submitCandidates").addEventListener("click", () => {
                     document.querySelector("#remoteCandidates").value.split("\n\n").filter(i => i.length).forEach(c => {

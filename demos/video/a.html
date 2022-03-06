@@ -40,7 +40,7 @@
                 conn.addEventListener("pingchange", e => {
                     document.querySelector("#ping").textContent = e.ping;
                 });
-                conn.addEventListener("signalingstatechange", () => {
+                conn.addEventListener("signalingstatechange", e => {
                     if(e.signalingState === "complete"){
                         document.querySelector("#submitAnswer").setAttribute("disabled", "disabled");
                     }else if(e.signalingState === "awaiting-answer"){
@@ -48,6 +48,9 @@
                     }else{
                         document.querySelector("#submitAnswer").setAttribute("disabled", "disabled");
                     }
+                });
+                conn.addEventListener("offer", e => {
+                    document.querySelector("#offer").value = JSON.stringify(e.offer);
                 });
                 const userMedia = await navigator.mediaDevices.getUserMedia({
                     audio: true,
@@ -63,6 +66,7 @@
                 });
                 conn.init();
                 conn.addStream(userMedia);
+                conn.offer();
                 document.querySelector("#localVideo").srcObject = userMedia;
                 document.querySelector("#localVideo").addEventListener("loadedmetadata", e => {
                     e.target.play();
@@ -78,7 +82,6 @@
                         conn.receiveIceCandidate(JSON.parse(c));
                     });
                 });
-                document.querySelector("#offer").value = JSON.stringify(await conn.offer());
             });
         </script>
     </body>

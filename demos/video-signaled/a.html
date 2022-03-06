@@ -59,6 +59,12 @@
                 conn.addEventListener("streamadded", e => {
                     document.querySelector("#remoteVideo").srcObject = e.stream;
                 });
+                conn.addEventListener("offer", e => {
+                    socket.send(JSON.stringify({
+                        type: "sdp",
+                        data: JSON.stringify(e.offer)
+                    }));
+                });
                 const userMedia = await navigator.mediaDevices.getUserMedia({
                     audio: true,
                     video: {
@@ -73,6 +79,7 @@
                 });
                 conn.init();
                 conn.addStream(userMedia);
+                conn.offer();
                 document.querySelector("#localVideo").srcObject = userMedia;
                 document.querySelector("#localVideo").addEventListener("loadedmetadata", e => {
                     e.target.play();
@@ -80,10 +87,6 @@
                 document.querySelector("#remoteVideo").addEventListener("loadedmetadata", e => {
                     e.target.play();
                 });
-                socket.send(JSON.stringify({
-                    type: "sdp",
-                    data: JSON.stringify(await conn.offer())
-                }));
             });
         </script>
     </body>

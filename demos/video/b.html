@@ -40,7 +40,7 @@
                 conn.addEventListener("pingchange", e => {
                     document.querySelector("#ping").textContent = e.ping;
                 });
-                conn.addEventListener("signalingstatechange", () => {
+                conn.addEventListener("signalingstatechange", e => {
                     if(e.signalingState === "complete"){
                         document.querySelector("#submitOffer").setAttribute("disabled", "disabled");
                     }else if(e.signalingState === "awaiting-offer"){
@@ -48,6 +48,9 @@
                     }else{
                         document.querySelector("#submitOffer").setAttribute("disabled", "disabled");
                     }
+                });
+                conn.addEventListener("answer", e => {
+                    document.querySelector("#answer").value = JSON.stringify(e.answer);
                 });
                 const userMedia = await navigator.mediaDevices.getUserMedia({
                     audio: true,
@@ -71,7 +74,7 @@
                     e.target.play();
                 });
                 document.querySelector("#submitOffer").addEventListener("click", async () => {
-                    document.querySelector("#answer").value = JSON.stringify(await conn.receiveOffer(JSON.parse(document.querySelector("#offer").value)));
+                    conn.receiveOffer(JSON.parse(document.querySelector("#offer").value));
                 });
                 document.querySelector("#submitCandidates").addEventListener("click", () => {
                     document.querySelector("#remoteCandidates").value.split("\n\n").filter(i => i.length).forEach(c => {

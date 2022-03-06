@@ -52,6 +52,9 @@
                 conn.addEventListener("pingchange", e => {
                     document.querySelector("#ping").textContent = e.ping;
                 });
+                conn.addEventListener("offer", e => {
+                    document.querySelector("#offer").value = JSON.stringify(e.offer);
+                });
                 conn.init();
                 dat = conn.createDataChannel();
                 dat.addEventListener("message", e => {
@@ -66,6 +69,7 @@
                         document.querySelector("#send").setAttribute("disabled", "disabled");
                     }
                 });
+                conn.offer();
                 document.querySelector("#submitAnswer").addEventListener("click", () => {
                     conn.receiveAnswer(JSON.parse(document.querySelector("#answer").value));
                 });
@@ -81,7 +85,6 @@
                     document.querySelector("#thread").append(l);
                     document.querySelector("#message").value = "";
                 });
-                document.querySelector("#offer").value = JSON.stringify(await conn.offer());
             });
         </script>
     </body>
