@@ -57,15 +57,10 @@
                        }))
                     });
                 });
-                conn.addEventListener("connectionstatechange", e => {
+                conn.addEventListener("signalingstatechange", e => {
                     const l = document.createElement("LI");
-                    l.textContent = "Connection state changed to " + e.connectionState + " (" + e.reason + ")";
+                    l.textContent = "Signaling state changed to " + e.signalingState + " (" + e.reason + ")";
                     document.querySelector("#thread").append(l);
-                    if(e.connectionState === "connected"){
-                        document.querySelector("#send").removeAttribute("disabled");
-                    }else{
-                        document.querySelector("#send").setAttribute("disabled", "disabled");
-                    }
                 });
                 conn.addEventListener("pingchange", e => {
                     document.querySelector("#ping").textContent = e.ping;
@@ -77,6 +72,13 @@
                         const l = document.createElement("LI");
                         l.textContent = "Remote User: " + e.message;
                         document.querySelector("#thread").append(l);
+                    });
+                    dat.addEventListener("connectionstatechange", e => {
+                        if(e.connectionState === "connected"){
+                            document.querySelector("#send").removeAttribute("disabled");
+                        }else{
+                            document.querySelector("#send").setAttribute("disabled", "disabled");
+                        }
                     });
                 });
                 document.querySelector("#send").addEventListener("click", () => {

@@ -36,18 +36,16 @@
                         document.querySelector("#localCandidates").value += JSON.stringify(c.toJSON()) + "\n\n";
                     });
                 });
-                conn.addEventListener("connectionstatechange", e => {
+                conn.addEventListener("signalingstatechange", e => {
                     const l = document.createElement("LI");
-                    l.textContent = "Connection state changed to " + e.connectionState + " (" + e.reason + ")";
+                    l.textContent = "Signaling state changed to " + e.signalingState + " (" + e.reason + ")";
                     document.querySelector("#thread").append(l);
-                    if(conn.connectionState === "connected"){
+                    if(e.signalingState === "complete"){
                         document.querySelector("#send").removeAttribute("disabled");
                         document.querySelector("#submitOffer").setAttribute("disabled", "disabled");
-                    }else if(conn.connectionState === "awaiting-offer"){
-                        document.querySelector("#send").setAttribute("disabled", "disabled");
+                    }else if(e.signalingState === "awaiting-offer"){
                         document.querySelector("#submitOffer").removeAttribute("disabled");
                     }else{
-                        document.querySelector("#send").setAttribute("disabled", "disabled");
                         document.querySelector("#submitOffer").setAttribute("disabled", "disabled");
                     }
                 });
@@ -60,6 +58,13 @@
                         const l = document.createElement("LI");
                         l.textContent = "A: " + e.message;
                         document.querySelector("#thread").append(l);
+                    });
+                    dat.addEventListener("connectionstatechange", e => {
+                        if(e.connectionState === "connected"){
+                            document.querySelector("#send").removeAttribute("disabled");
+                        }else{
+                            document.querySelector("#send").setAttribute("disabled", "disabled");
+                        }
                     });
                 });
                 conn.init();

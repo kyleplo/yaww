@@ -40,10 +40,10 @@
                 conn.addEventListener("pingchange", e => {
                     document.querySelector("#ping").textContent = e.ping;
                 });
-                conn.addEventListener("connectionstatechange", () => {
-                    if(conn.connectionState === "connected"){
+                conn.addEventListener("signalingstatechange", () => {
+                    if(e.signalingState === "connected"){
                         document.querySelector("#submitAnswer").setAttribute("disabled", "disabled");
-                    }else if(conn.connectionState === "awaiting-answer"){
+                    }else if(e.signalingState === "awaiting-answer"){
                         document.querySelector("#submitAnswer").removeAttribute("disabled");
                     }else{
                         document.querySelector("#submitAnswer").setAttribute("disabled", "disabled");

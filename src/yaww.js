@@ -1,7 +1,32 @@
+class NullEvent extends Event {
+    constructor () {
+        super("null");
+    }
+}
+
 class ConnectionStateChangeEvent extends Event {
-    constructor (connectionState, reason) {
+    constructor (connectionState, reason, target) {
         super("connectionstatechange");
+
+        if(connectionState === target._lastConnectionStateChangeValue){
+            return new NullEvent();
+        }else{
+            target._lastConnectionStateChangeValue = connectionState;
+        }
         this.connectionState = connectionState;
+        this.reason = reason;
+    }
+}
+
+class SignalingStateChangeEvent extends Event {
+    constructor (signalingState, reason, target) {
+        super("signalingstatechange");
+        if(signalingState === target._lastSignalingStateChangeValue){
+            return new NullEvent();
+        }else{
+            target._lastSignalingStateChangeValue = signalingState;
+        }
+        this.signalingState = signalingState;
         this.reason = reason;
     }
 }
@@ -84,28 +109,26 @@ class DataChannel extends EventTarget {
     constructor (dataChannel, remote) {
         super();
         this._dat = dataChannel;
-        this.connectionState = "closed";
         this.label = dataChannel.label;
         this.remote = remote;
+        this.connectionState = "disconnected";
+        this._lastConnectionStateChangeValue = "";
 
         this._dat.addEventListener("message", e => {
             super.dispatchEvent(new MessageEvent(e.data));
         });
         this._dat.addEventListener("open", () => {
-            this.connectionState = "open";
-            super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState, "connected"));
+            this.connectionState = "connected";
+            super.dispatchEvent(new ConnectionStateChangeEvent("connected", "opened", this));
         });
         this._dat.addEventListener("close", () => {
-            if(this.connectionState === "closed"){
-                return;
-            }
-            this.connectionState = "closed";
-            super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState, "disconnected"));
+            this.connectionState = "disconnected";
+            super.dispatchEvent(new ConnectionStateChangeEvent("disconnected", "closed", this));
         });
     }
 
     send (message) {
-        if(this.connectionState !== "open"){
+        if(this.connectionState !== "connected"){
             throw Connection._libName + "Error: Data channel not open."
         }
 
@@ -113,7 +136,7 @@ class DataChannel extends EventTarget {
     }
 
     close (_s) {
-        if(this.connectionState !== "open"){
+        if(this.connectionState !== "connected"){
             if(_s){
                 return;
             }
@@ -127,7 +150,7 @@ class DataChannel extends EventTarget {
 class Connection extends EventTarget {
     constructor (config) {
         super();
-        this.connectionState = "closed";
+        this.signalingState = "closed";
         this._config = Object.assign({
             rtc: {},
             pingInterval: 1000,
@@ -141,16 +164,32 @@ class Connection extends EventTarget {
         this._lastPing = null;
         this._candidates = [];
         this._queuedCandidates = [];
+        this._lastSignalingStateChangeValue = "";
     }
 
     static _libName = "YAWW"
 
     static _signalingStates = {
-        "closed": "closed",
-        "have-local-offer": "awaiting-answer",
-        "have-remote-offer": "negotiating",
-        "have-local-pranswer": "negotiating",
-        "have-remote-pranswer": "negotiating"
+        "closed": {
+            state: "closed",
+            reason: "disconnected"
+        },
+        "have-local-offer": {
+            state: "awaiting-answer",
+            reason: "local-description-received"
+        },
+        "have-remote-offer": {
+            state: "negotiating",
+            reason: "remote-description-received"
+        },
+        "have-local-pranswer": {
+            state: "closed",
+            reason: "legacy-signaling"
+        },
+        "have-remote-pranswer": {
+            state: "closed",
+            reason: "legacy-signaling"
+        }
     }
 
     static generateRandomId () {
@@ -174,7 +213,7 @@ class Connection extends EventTarget {
     }
 
     init () {
-        if(this.connectionState !== "closed"){
+        if(this.signalingState !== "closed"){
             throw Connection._libName + "Error: Connection already open.";
         }
 
@@ -192,17 +231,17 @@ class Connection extends EventTarget {
             if(e.channel.label.startsWith(Connection._libName + "-")){
                 if(this._remoteInternalChannel){
                     throw Connection._libName + "Error: Multiple remote internal channels received."
-                }
+                };
                 this._remoteInternalChannel = e.channel;
+                this._remoteInternalChannel.addEventListener("open", () => {
+                    super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "remote-internal-opened", this));
+                })
                 this._remoteInternalChannel.addEventListener("message", e => {
                     e.target.send("pong");
                 });
                 this._remoteInternalChannel.addEventListener("close", () => {
                     this._remoteInternalChannel = null;
-                    if(this.connectionState !== "closed"){
-                        this.connectionState = "closed";
-                        super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState, "internal-disconnected"));
-                    }
+                    super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "remote-internal-closed", this));
                     this.close(true);
                 });
             }else{
@@ -237,18 +276,12 @@ class Connection extends EventTarget {
                 if(!this._localInternalChannel){
                     this._initLocalInternalChannel();
                 }
+                this.signalingState = "complete";
                 this._useQueuedCandidates();
-                if(this.connectionState === "connected"){
-                    return;
-                }
-                this.connectionState = "connected";
-                super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState, "connected"));
+                super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "negotiation-finished", this));
             }else if(this._rtc.iceConnectionState === "failed"){
-                if(this.connectionState === "closed"){
-                    return;
-                }
-                this.connectionState = "closed"
-                super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState, "ice-failed"));
+                this.signalingState = "closed"
+                super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "ice-failed", this));
                 this.close(true);
             }else if(this._rtc.iceConnectionState === "closed" || this._rtc.iceConnectionState === "disconnected"){
                 this.close(true);
@@ -256,44 +289,35 @@ class Connection extends EventTarget {
         });
         this._rtc.addEventListener("signalingstatechange", () => {
             if(!this._rtc){
-                if(this.connectionState !== "closed"){
-                    this.connectionState = "closed";
-                    super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState, "disconnected"));
-                }
+                this.signalingState = "closed";
+                super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "disconnected", this));
                 return;
             }
+            var reason;
             if(this._rtc.signalingState === "stable"){
                 if(this._rtc.iceConnectionState === "completed" || this._rtc.iceConnectionState == "connected"){
+                    this.signalingState = "complete";
                     this._useQueuedCandidates();
-                    if(this.connectionState === "connected"){
-                        return;
-                    }
-                    this.connectionState = "connected";
+                    reason = "negotiation-finished"
                 }else if(this._rtc.currentLocalDescription){
-                    if(this.connectionState === "negotiating"){
-                        return;
-                    }
-                    this.connectionState = "negotiating";
+                    this.signalingState = "negotiating";
                     this._useQueuedCandidates();
+                    reason = "negotiating"
                 }else{
-                    if(this.connectionState === "awaiting-offer"){
-                        return;
-                    }
-                    this.connectionState = "awaiting-offer"
+                    this.signalingState = "awaiting-offer"
+                    reason = "signaling-begin"
                 }
             }else{
-                if(this.connectionState === Connection._signalingStates[this._rtc.signalingState]){
-                    return;
-                }
-                this.connectionState = Connection._signalingStates[this._rtc.signalingState];
-                if(this.connectionState === "closed"){
+                this.signalingState = Connection._signalingStates[this._rtc.signalingState].state;
+                reason = Connection._signalingStates[this._rtc.signalingState].reason;
+                if(this.signalingState === "closed"){
                     this.close(true);
                 }
-                if(this.connectionState === "negotiating"){
+                if(this.signalingState === "negotiating"){
                     this._useQueuedCandidates();
                 }
             }
-            super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState, (this.connectionState === "closed" ? "disconnected" : "signaling")));
+            super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, reason, this));
         });
         if("RTCPeerConnectionIceErrorEvent" in window){
             this._rtc.addEventListener("icecandidateerror", e => {
@@ -306,11 +330,8 @@ class Connection extends EventTarget {
         if(!this._localInternalChannel){
             this._initLocalInternalChannel();
         }
-        if(this.connectionState === "awaiting-offer"){
-            return;
-        }
-        this.connectionState = "awaiting-offer";
-        super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState, "signaling"));
+        this.signalingState = "awaiting-offer";
+        super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "init", this));
     }
 
     _initLocalInternalChannel () {
@@ -320,13 +341,11 @@ class Connection extends EventTarget {
 
         this._localInternalChannel = this._rtc.createDataChannel(Connection._libName + "-" + Connection.generateRandomId());
         this._localInternalChannel.addEventListener("open", e => {
+            super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "local-internal-opened", this));
             this._lastPing = Date.now();
             e.target.send("ping");
             this._disconnectTimer = setTimeout(() => {
-                if(this.connectionState !== "closed"){
-                    this.connectionState = "closed";
-                    super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState, "timeout"));
-                }
+                super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "timeout", this));
                 this.close(true);
             }, this._config.disconnectTimeout);
         });
@@ -339,10 +358,7 @@ class Connection extends EventTarget {
                     this._lastPing = Date.now();
                     e.target.send("ping");
                     this._disconnectTimer = setTimeout(() => {
-                        if(this.connectionState !== "closed"){
-                            this.connectionState = "closed";
-                            super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState, "timeout"));
-                        }
+                        super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "timeout", this));
                         this.close(true);
                     }, this._config.disconnectTimeout);
                 }else{
@@ -354,17 +370,15 @@ class Connection extends EventTarget {
             this._localInternalChannel = null;
             this.ping = null;
             super.dispatchEvent(new PingChangeEvent(this.ping));
-            if(this.connectionState !== "closed"){
-                this.connectionState = "closed";
-                super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState, "internal-disconnected"));
-            }
+            this.signalingState = "closed";
+            super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "local-internal-closed", this));
             this.close(true);
         });
     }
 
     _useQueuedCandidates () {
-        if(this.connectionState !== "connected" && this.connectionState !== "negotiating"){
-            throw Connection._libName + "Error: Connection cannot accept ice candidates"
+        if(this.signalingState !== "complete" && this.signalingState !== "negotiating"){
+            return;
         }
 
         this._queuedCandidates.forEach(c => {
@@ -419,11 +433,12 @@ class Connection extends EventTarget {
     }
 
     async offer (renegotiate) {
-        if(this.connectionState !== "awaiting-offer" && !renegotiate){
+        if(renegotiate ? this.signalingState !== "awaiting-offer" : (this.signalingState !== "complete" && this.signalingState !== "awaiting-offer")){
             throw Connection._libName + "Error: Connection generate offer.";
         }else if(!this._rtc){
             throw Connection._libName + "Error: Connection not initialized."
         }
+        this.polite = false;
 
         const o = await this._rtc.createOffer({
             iceRestart: renegotiate
@@ -434,11 +449,17 @@ class Connection extends EventTarget {
     }
 
     async receiveOffer (offer) {
-        if(this.connectionState === "closed"){
+        if(this.signalingState === "closed"){
             throw Connection._libName + "Error: Connection closed.";
         }
 
-        await this._rtc.setRemoteDescription(Connection._fixSessionDescription(offer));
+        const d = Connection._fixSessionDescription(offer);
+
+        if(d.type !== "offer"){
+            throw Connection._libName + "Error: Session description is not of type \"offer\"."
+        }
+
+        await this._rtc.setRemoteDescription(d);
         const a = await this._rtc.createAnswer();
         await this._rtc.setLocalDescription(a);
         super.dispatchEvent(new AnswerEvent(a));
@@ -446,15 +467,21 @@ class Connection extends EventTarget {
     }
 
     async receiveAnswer (answer) {
-        if(this.connectionState !== "awaiting-answer"){
+        if(this.signalingState !== "awaiting-answer" && this.signalingState !== "complete"){
             throw Connection._libName + "Error: Connection cannot accept answer.";
         }
 
-        await this._rtc.setRemoteDescription(Connection._fixSessionDescription(answer));
+        const d = Connection._fixSessionDescription(answer);
+
+        if(d.type !== "answer"){
+            throw Connection._libName + "Error: Session description is not of type \"answer\"."
+        }
+
+        await this._rtc.setRemoteDescription(d);
     }
 
     async receiveIceCandidate (candidate) {
-        if(this.connectionState !== "negotiating" && this.connectionState !== "connected"){
+        if(this.signalingState !== "negotiating" && this.signalingState !== "complete"){
             this._queuedCandidates.push(Connection._fixIceCandidate(candidate));``
         }else{
             await this._rtc.addIceCandidate(Connection._fixIceCandidate(candidate));
@@ -462,7 +489,7 @@ class Connection extends EventTarget {
     }
 
     createDataChannel (label) {
-        if(this.connectionState === "closed"){
+        if(this.signalingState === "closed"){
             throw Connection._libName + "Error: Connection closed.";
         }
 
@@ -472,7 +499,7 @@ class Connection extends EventTarget {
     }
 
     close (_silent) {
-        if(this.connectionState === "closed" && !_silent){
+        if(this.signalingState === "closed" && !_silent){
             throw Connection._libName + "Error: Connection already closed.";
         }
 
@@ -489,7 +516,7 @@ class Connection extends EventTarget {
             this._remoteInternalChannel.close();
         }
 
-        if (this._rtc && this.connectionState !== "closed") {
+        if (this._rtc && this.signalingState !== "closed") {
             this._rtc.close();
         }
 
@@ -500,9 +527,7 @@ class Connection extends EventTarget {
         this._queuedCandidates = [];
         this._hasAllCandidates = false;
         
-        if(this.connectionState !== "closed"){
-            this.connectionState = "closed";
-            super.dispatchEvent(new ConnectionStateChangeEvent(this.connectionState, "disconnected"));
-        }
+        this.signalingState = "closed";
+        super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "closed", this));
     }
 }
