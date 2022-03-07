@@ -505,6 +505,18 @@ class Connection extends EventTarget {
         await this._rtc.setRemoteDescription(d);
     }
 
+    receiveSignal (signal) {
+        const d = Connection._fixSessionDescription(signal);
+
+        if(d.type === "offer"){
+            return this.receiveOffer(signal);
+        }else if(d.type === "answer"){
+            return this.receiveAnswer(signal);
+        }else{
+            throw Connection._libName + "Error: Session description is of unsupported type \"" + d.type + "\"."
+        }
+    }
+
     async receiveIceCandidate (candidate) {
         if(this.signalingState !== "negotiating" && this.signalingState !== "complete"){
             this._queuedCandidates.push(Connection._fixIceCandidate(candidate));``
