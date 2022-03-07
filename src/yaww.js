@@ -237,7 +237,19 @@ class Connection extends EventTarget {
                     super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "remote-internal-opened", this));
                 })
                 this._remoteInternalChannel.addEventListener("message", e => {
-                    e.target.send("pong");
+                    try {
+                        const d = JSON.parse(e.data);
+                        if(!d.type){
+                            throw null;
+                        }
+                        if(d.type === "ping"){
+                            e.target.send(JSON.stringify({
+                                type: "pong"
+                            }))
+                        }
+                    } catch (e) {
+                        throw Connection._libName + "Error: Invalid message received on remote internal channel."
+                    }
                 });
                 this._remoteInternalChannel.addEventListener("close", () => {
                     this._remoteInternalChannel = null;
@@ -342,28 +354,42 @@ class Connection extends EventTarget {
         this._localInternalChannel.addEventListener("open", e => {
             super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "local-internal-opened", this));
             this._lastPing = Date.now();
-            e.target.send("ping");
+            e.target.send(JSON.stringify({
+                type: "ping"
+            }));
             this._disconnectTimer = setTimeout(() => {
                 super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "timeout", this));
                 this.close(true);
             }, this._config.disconnectTimeout);
         });
         this._localInternalChannel.addEventListener("message", e => {
-            clearTimeout(this._disconnectTimer);
-            this.ping = Date.now() - this._lastPing;
-            super.dispatchEvent(new PingChangeEvent(this.ping));
-            setTimeout(() => {
-                if(e.target.readyState === "open"){
-                    this._lastPing = Date.now();
-                    e.target.send("ping");
-                    this._disconnectTimer = setTimeout(() => {
-                        super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "timeout", this));
-                        this.close(true);
-                    }, this._config.disconnectTimeout);
-                }else{
-                    this.close(true);
+            try {
+                const d = JSON.parse(e.data);
+                if(!d.type){
+                    throw null;
                 }
-            }, this._config.pingInterval);
+                if(d.type === "pong"){
+                    clearTimeout(this._disconnectTimer);
+                    this.ping = Date.now() - this._lastPing;
+                    super.dispatchEvent(new PingChangeEvent(this.ping));
+                    setTimeout(() => {
+                        if(e.target.readyState === "open"){
+                            this._lastPing = Date.now();
+                            e.target.send(JSON.stringify({
+                                type: "ping"
+                            }));
+                            this._disconnectTimer = setTimeout(() => {
+                                super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "timeout", this));
+                                this.close(true);
+                            }, this._config.disconnectTimeout);
+                        }else{
+                            this.close(true);
+                        }
+                    }, this._config.pingInterval);
+                }
+            } catch (e) {
+                throw Connection._libName + "Error: Invalid message received on local internal channel."
+            }
         });
         this._localInternalChannel.addEventListener("close", () => {
             this._localInternalChannel = null;
