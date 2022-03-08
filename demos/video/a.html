@@ -41,9 +41,7 @@
                     document.querySelector("#ping").textContent = e.ping;
                 });
                 conn.addEventListener("signalingstatechange", e => {
-                    if(e.signalingState === "complete"){
-                        document.querySelector("#submitAnswer").setAttribute("disabled", "disabled");
-                    }else if(e.signalingState === "awaiting-answer"){
+                    if(e.signalingState === "awaiting-answer" || e.signalingState === "complete"){
                         document.querySelector("#submitAnswer").removeAttribute("disabled");
                     }else{
                         document.querySelector("#submitAnswer").setAttribute("disabled", "disabled");

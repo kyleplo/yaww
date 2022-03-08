@@ -25,7 +25,7 @@
                     if(m.type === "iceCandidate"){
                         conn.receiveIceCandidate(JSON.parse(m.data));
                     }else if(m.type === "sdp"){
-                        conn.receiveAnswer(JSON.parse(m.data));
+                        conn.receiveSignal(JSON.parse(m.data));
                     }else if(m.type === "id"){
                         document.querySelector("#id").textContent = m.data;
                     }else if(m.type === "peerDisconnect"){
@@ -63,10 +63,10 @@
                 conn.addEventListener("pingchange", e => {
                     document.querySelector("#ping").textContent = e.ping;
                 });
-                conn.addEventListener("offer", e => {
+                conn.addEventListener("signal", e => {
                     socket.send(JSON.stringify({
                         type: "sdp",
-                        data: JSON.stringify(e.offer)
+                        data: JSON.stringify(e.signal)
                     }));
                 });
                 conn.init();

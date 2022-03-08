@@ -23,7 +23,7 @@
                     if(m.type === "iceCandidate"){
                         conn.receiveIceCandidate(JSON.parse(m.data));
                     }else if(m.type === "sdp"){
-                        conn.receiveAnswer(JSON.parse(m.data));
+                        conn.receiveSignal(JSON.parse(m.data));
                     }else if(m.type === "id"){
                         document.querySelector("#id").textContent = m.data;
                     }else if(m.type === "peerDisconnect"){
@@ -59,10 +59,10 @@
                 conn.addEventListener("streamadded", e => {
                     document.querySelector("#remoteVideo").srcObject = e.stream;
                 });
-                conn.addEventListener("offer", e => {
+                conn.addEventListener("signal", e => {
                     socket.send(JSON.stringify({
                         type: "sdp",
-                        data: JSON.stringify(e.offer)
+                        data: JSON.stringify(e.signal)
                     }));
                 });
                 const userMedia = await navigator.mediaDevices.getUserMedia({

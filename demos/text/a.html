@@ -40,10 +40,7 @@
                     const l = document.createElement("LI");
                     l.textContent = "Signaling state changed to " + e.signalingState + " (" + e.reason + ")";
                     document.querySelector("#thread").append(l);
-                    if(e.signalingState === "complete"){
-                        document.querySelector("#submitAnswer").setAttribute("disabled", "disabled");
-                    }else if(e.signalingState === "awaiting-answer"){
-                        document.querySelector("#send").setAttribute("disabled", "disabled");
+                    if(e.signalingState === "awaiting-answer" || e.signalingState === "complete"){
                         document.querySelector("#submitAnswer").removeAttribute("disabled");
                     }else{
                         document.querySelector("#submitAnswer").setAttribute("disabled", "disabled");

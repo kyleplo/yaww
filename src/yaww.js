@@ -61,8 +61,9 @@ class DataChannelEvent extends Event {
 }
 
 class NegotiateEvent extends Event {
-    constructor () {
+    constructor (remote) {
         super("negotiate", {cancelable: true});
+        this.remote = remote;
     }
 }
 
@@ -84,6 +85,13 @@ class OfferEvent extends Event {
     constructor (offer) {
         super("offer");
         this.offer = offer;
+    }
+}
+
+class SignalEvent extends Event {
+    constructor (signal) {
+        super("signal");
+        this.signal = signal;
     }
 }
 
@@ -157,6 +165,7 @@ class Connection extends EventTarget {
             disconnectTimeout: 1500
         }, config);
         this.ping = null;
+        this.polite = true;
         this._disconnectTimer = null;
         this._hasAllCandidates = false;
         this._localInternalChannel = null;
@@ -165,6 +174,7 @@ class Connection extends EventTarget {
         this._candidates = [];
         this._queuedCandidates = [];
         this._lastSignalingStateChangeValue = "";
+        this._canRenegotiate = true;
     }
 
     static _libName = "YAWW"
@@ -246,6 +256,11 @@ class Connection extends EventTarget {
                             e.target.send(JSON.stringify({
                                 type: "pong"
                             }))
+                        }else if(d.type === "negotiate"){
+                            if(!this._canRenegotiate || !this._rtc || !this._rtc.currentLocalDescription){
+                                throw Connection._libName + "Error: Renegotation requested when not possible."
+                            }
+                            this.offer(true);
                         }
                     } catch (e) {
                         throw Connection._libName + "Error: Invalid message received on remote internal channel."
@@ -261,10 +276,17 @@ class Connection extends EventTarget {
             }
         });
         this._rtc.addEventListener("negotiationneeded", () => {
-            if(!super.dispatchEvent(new NegotiateEvent()) && this._rtc && this._rtc.currentLocalDescription){
-                this._candidates = [];
-                this._hasAllCandidates = false;
-                this.offer(true);
+            if(!this._canRenegotiate || !this._rtc || !this._rtc.currentLocalDescription){
+                return;
+            }
+            if(super.dispatchEvent(new NegotiateEvent(false))){
+                if(this.polite){
+                    this._remoteInternalChannel.send(JSON.stringify({
+                        type: "negotiate"
+                    }));
+                }else{
+                    this.offer(true);
+                }
             }
         });
         this._rtc.addEventListener("track", e => {
@@ -298,6 +320,9 @@ class Connection extends EventTarget {
             }else if(this._rtc.iceConnectionState === "closed" || this._rtc.iceConnectionState === "disconnected"){
                 this.close(true);
             }
+            if(this.signalingState === "closed" || this.signalingState === "complete"){
+                this._canRenegotiate = true;
+            }
         });
         this._rtc.addEventListener("signalingstatechange", () => {
             if(!this._rtc){
@@ -328,6 +353,9 @@ class Connection extends EventTarget {
                 if(this.signalingState === "negotiating"){
                     this._useQueuedCandidates();
                 }
+            }
+            if(this.signalingState === "closed" || this.signalingState === "complete"){
+                this._canRenegotiate = true;
             }
             super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, reason, this));
         });
@@ -386,6 +414,14 @@ class Connection extends EventTarget {
                             this.close(true);
                         }
                     }, this._config.pingInterval);
+                }else if(d.type === "negotiate"){
+                    if(this._canRenegotiate && this._rtc && this._rtc.currentLocalDescription){
+                        this.polite = false;
+                        this._canRenegotiate = false;
+                        e.target.send(JSON.stringify({
+                            type: "negotiate"
+                        }));
+                    }
                 }
             } catch (e) {
                 throw Connection._libName + "Error: Invalid message received on local internal channel."
@@ -458,18 +494,26 @@ class Connection extends EventTarget {
     }
 
     async offer (renegotiate) {
-        if(renegotiate ? this.signalingState !== "awaiting-offer" : (this.signalingState !== "complete" && this.signalingState !== "awaiting-offer")){
-            throw Connection._libName + "Error: Connection generate offer.";
+        if(renegotiate ? (this.signalingState === "negotiating" || this.signalingState === "closed") : this.signalingState !== "awaiting-offer"){
+            throw Connection._libName + "Error: Connection cannot generate offer.";
         }else if(!this._rtc){
             throw Connection._libName + "Error: Connection not initialized."
         }
-        this.polite = false;
+
+        this._candidates = [];
+        this._hasAllCandidates = false;
+        this._canRenegotiate = false;
+        
+        if(!renegotiate){
+            this.polite = false;
+        }
 
         const o = await this._rtc.createOffer({
             iceRestart: renegotiate
         });
         await this._rtc.setLocalDescription(o);
         super.dispatchEvent(new OfferEvent(o));
+        super.dispatchEvent(new SignalEvent(o));
         return o;
     }
 
@@ -484,10 +528,14 @@ class Connection extends EventTarget {
             throw Connection._libName + "Error: Session description is not of type \"offer\"."
         }
 
+        this._candidates = [];
+        this._hasAllCandidates = false;
+
         await this._rtc.setRemoteDescription(d);
         const a = await this._rtc.createAnswer();
         await this._rtc.setLocalDescription(a);
         super.dispatchEvent(new AnswerEvent(a));
+        super.dispatchEvent(new SignalEvent(a));
         return a;
     }
 
@@ -563,7 +611,8 @@ class Connection extends EventTarget {
         this._candidates = [];
         this._queuedCandidates = [];
         this._hasAllCandidates = false;
-        
+        this._canRenegotiate = true;
+
         this.signalingState = "closed";
         super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "closed", this));
     }
