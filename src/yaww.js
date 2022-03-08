@@ -162,7 +162,8 @@ class Connection extends EventTarget {
         this._config = Object.assign({
             rtc: {},
             pingInterval: 1000,
-            disconnectTimeout: 1500
+            disconnectTimeout: 1500,
+            negotiateOverDataChannel: true
         }, config);
         this.ping = null;
         this.polite = true;
@@ -231,7 +232,14 @@ class Connection extends EventTarget {
         this._rtc.addEventListener("icecandidate", e => {
             if(e.candidate){
                 this._candidates.push(e.candidate);
-                super.dispatchEvent(new CandidateDiscoveredEvent(e.candidate));
+                if(this._config.negotiateOverDataChannel && this._localInternalChannel && this._localInternalChannel.readyState === "open"){
+                    this._localInternalChannel.send(JSON.stringify({
+                        type: "candidate",
+                        data: e.candidate.toJSON()
+                    }));
+                }else{
+                    super.dispatchEvent(new CandidateDiscoveredEvent(e.candidate));
+                }
             }else if(!this._hasAllCandidates){
                 super.dispatchEvent(new AllCandidatesDiscoveredEvent(this._candidates));
                 this._hasAllCandidates = true;
@@ -261,6 +269,10 @@ class Connection extends EventTarget {
                                 throw Connection._libName + "Error: Renegotation requested when not possible."
                             }
                             this.offer(true);
+                        }else if(d.type === "signal"){
+                            this.receiveSignal(d.data);
+                        }else if(d.type === "candidate"){
+                            this.receiveIceCandidate(d.data);
                         }
                     } catch (e) {
                         throw Connection._libName + "Error: Invalid message received on remote internal channel."
@@ -512,6 +524,15 @@ class Connection extends EventTarget {
             iceRestart: renegotiate
         });
         await this._rtc.setLocalDescription(o);
+
+        if(this._config.negotiateOverDataChannel && this._localInternalChannel && this._localInternalChannel.readyState === "open"){
+            this._localInternalChannel.send(JSON.stringify({
+                type: "signal",
+                data: o.toJSON()
+            }));
+            return;
+        }
+
         super.dispatchEvent(new OfferEvent(o));
         super.dispatchEvent(new SignalEvent(o));
         return o;
@@ -534,6 +555,15 @@ class Connection extends EventTarget {
         await this._rtc.setRemoteDescription(d);
         const a = await this._rtc.createAnswer();
         await this._rtc.setLocalDescription(a);
+
+        if(this._config.negotiateOverDataChannel && this._localInternalChannel && this._localInternalChannel.readyState === "open"){
+            this._localInternalChannel.send(JSON.stringify({
+                type: "signal",
+                data: a.toJSON()
+            }));
+            return;
+        }
+
         super.dispatchEvent(new AnswerEvent(a));
         super.dispatchEvent(new SignalEvent(a));
         return a;
