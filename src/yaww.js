@@ -31,7 +31,7 @@ class SignalingStateChangeEvent extends Event {
     }
 }
 
-class MessageEvent extends Event {
+class DataMessageEvent extends Event {
     constructor (message) {
         super("message");
         this.message = message;
@@ -123,7 +123,7 @@ class DataChannel extends EventTarget {
         this._lastConnectionStateChangeValue = "";
 
         this._dat.addEventListener("message", e => {
-            super.dispatchEvent(new MessageEvent(e.data));
+            super.dispatchEvent(new DataMessageEvent(e.data));
         });
         this._dat.addEventListener("open", () => {
             this.connectionState = "open";
