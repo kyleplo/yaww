@@ -28,8 +28,6 @@
                         conn.receiveSignal(JSON.parse(m.data));
                     }else if(m.type === "id"){
                         document.querySelector("#id").textContent = m.data;
-                    }else if(m.type === "peerDisconnect"){
-                        location.reload();
                     }
                 })
                 await new Promise(r => {

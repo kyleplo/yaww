@@ -26,8 +26,6 @@
                         conn.receiveIceCandidate(JSON.parse(m.data));
                     }else if(m.type === "sdp"){
                         conn.receiveSignal(JSON.parse(m.data));
-                    }else if(m.type === "peerDisconnect"){
-                        location.reload();
                     }
                 })
                 await new Promise(r => {

@@ -26,8 +26,6 @@
                         conn.receiveSignal(JSON.parse(m.data));
                     }else if(m.type === "id"){
                         document.querySelector("#id").textContent = m.data;
-                    }else if(m.type === "peerDisconnect"){
-                        location.reload();
                     }
                 })
                 await new Promise(r => {
@@ -77,8 +75,10 @@
                         facingMode: "user"
                     }
                 });
+                conn.addEventListener("beforenegotiate", () => {
+                    conn.addStream(userMedia);
+                });
                 conn.init();
-                conn.addStream(userMedia);
                 conn.offer();
                 document.querySelector("#localVideo").srcObject = userMedia;
                 document.querySelector("#localVideo").addEventListener("loadedmetadata", e => {

@@ -85,10 +85,6 @@ wss.on("connection", s => {
             peer.peer = "";
             peer.candidates = [];
             peer.sdp = "";
-            peer.socket.send(JSON.stringify({
-                type: "peerDisconnect",
-                data: randomId
-            }))
         }
         delete connections[randomId];
     });

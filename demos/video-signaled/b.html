@@ -21,8 +21,6 @@
                         conn.receiveIceCandidate(JSON.parse(m.data));
                     }else if(m.type === "sdp"){
                         conn.receiveSignal(JSON.parse(m.data));
-                    }else if(m.type === "peerDisconnect"){
-                        location.reload();
                     }
                 })
                 socket.addEventListener("open", () => {
@@ -76,8 +74,10 @@
                         facingMode: "user"
                     }
                 });
+                conn.addEventListener("beforenegotiate", () => {
+                    conn.addStream(userMedia);
+                });
                 conn.init();
-                conn.addStream(userMedia);
                 document.querySelector("#localVideo").srcObject = userMedia;
                 document.querySelector("#localVideo").addEventListener("loadedmetadata", e => {
                     e.target.play();

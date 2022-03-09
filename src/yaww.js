@@ -67,6 +67,12 @@ class NegotiateEvent extends Event {
     }
 }
 
+class BeforeNegotiateEvent extends Event {
+    constructor () {
+        super("beforenegotiate");
+    }
+}
+
 class StreamAddedEvent extends Event {
     constructor (stream) {
         super("streamadded");
@@ -116,31 +122,40 @@ class IceCandidateErrorEvent extends Event {
 class DataChannel extends EventTarget {
     constructor (dataChannel, remote) {
         super();
-        this._dat = dataChannel;
+        this._queue = [];
         this.label = dataChannel.label;
         this.remote = remote;
         this.connectionState = "closed";
         this._lastConnectionStateChangeValue = "";
 
+        this._init(dataChannel)
+    }
+
+    _init (dataChannel) {
+        this._dat = dataChannel;
         this._dat.addEventListener("message", e => {
             super.dispatchEvent(new DataMessageEvent(e.data));
         });
         this._dat.addEventListener("open", () => {
             this.connectionState = "open";
             super.dispatchEvent(new ConnectionStateChangeEvent("open", "opened", this));
+            this._queue.forEach(() => {
+                this._dat.send(this._queue.pop());
+            });
         });
         this._dat.addEventListener("close", () => {
             this.connectionState = "closed";
+            this._dat = null;
             super.dispatchEvent(new ConnectionStateChangeEvent("closed", "closed", this));
         });
     }
 
     send (message) {
-        if(this.connectionState !== "open"){
-            throw Connection._libName + "Error: Data channel not open."
+        if(this.connectionState === "open"){
+            this._dat.send(message);
+        }else{
+            this._queue.push(message);
         }
-
-        this._dat.send(message);
     }
 
     close (_s) {
@@ -163,7 +178,9 @@ class Connection extends EventTarget {
             rtc: {},
             pingInterval: 1000,
             disconnectTimeout: 1500,
-            negotiateOverDataChannel: true
+            negotiateOverDataChannel: true,
+            reconnectDelay: 1000,
+            reconnectTimeout: 5000
         }, config);
         this.ping = null;
         this.polite = true;
@@ -176,6 +193,9 @@ class Connection extends EventTarget {
         this._queuedCandidates = [];
         this._lastSignalingStateChangeValue = "";
         this._canRenegotiate = true;
+        this._reconnectTimer = null;
+        this._permanentlyClosed = false;
+        this._localDats = [];
     }
 
     static _libName = "YAWW"
@@ -224,9 +244,11 @@ class Connection extends EventTarget {
     }
 
     init () {
-        if(this.signalingState !== "closed"){
+        if(this.signalingState !== "closed" && this.signalingState !== "reconnecting"){
             throw Connection._libName + "Error: Connection already open.";
         }
+
+        this._permanentlyClosed = false;
 
         this._rtc = new RTCPeerConnection(this._config.rtc);
         this._rtc.addEventListener("icecandidate", e => {
@@ -280,8 +302,12 @@ class Connection extends EventTarget {
                 });
                 this._remoteInternalChannel.addEventListener("close", () => {
                     this._remoteInternalChannel = null;
-                    super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "remote-internal-closed", this));
-                    this.close(true);
+                    
+                    if(this.signalingState !== "reconnecting"){
+                        this.signalingState = "closed";
+                        super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "remote-internal-closed", this));
+                        this.close(true);
+                    }
                 });
             }else{
                 super.dispatchEvent(new DataChannelEvent(new DataChannel(e.channel, true), true));
@@ -323,29 +349,38 @@ class Connection extends EventTarget {
                     this._initLocalInternalChannel();
                 }
                 this.signalingState = "complete";
+                clearTimeout(this._reconnectTimer);
+                this._reconnectTimer = null;
                 this._useQueuedCandidates();
                 super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "negotiation-finished", this));
             }else if(this._rtc.iceConnectionState === "failed"){
-                this.signalingState = "closed"
-                super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "negotiation-failed", this));
-                this.close(true);
+                if(this.signalingState !== "reconnecting"){
+                    this.signalingState = "closed";
+                    super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "negotiation-failed", this));
+                    this.close(true);
+                }
             }else if(this._rtc.iceConnectionState === "closed" || this._rtc.iceConnectionState === "disconnected"){
                 this.close(true);
             }
-            if(this.signalingState === "closed" || this.signalingState === "complete"){
+            if(this.signalingState === "closed" || this.signalingState === "reconnecting" || this.signalingState === "complete"){
                 this._canRenegotiate = true;
             }
         });
         this._rtc.addEventListener("signalingstatechange", () => {
             if(!this._rtc){
-                this.signalingState = "closed";
-                super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "disconnected", this));
+                if(this.signalingState !== "reconnecting"){
+                    this.signalingState = "closed";
+                    super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "disconnected", this));
+                    this.close(true);
+                }
                 return;
             }
             var reason;
             if(this._rtc.signalingState === "stable"){
                 if(this._rtc.iceConnectionState === "completed" || this._rtc.iceConnectionState == "connected"){
                     this.signalingState = "complete";
+                    clearTimeout(this._reconnectTimer);
+                    this._reconnectTimer = null;
                     this._useQueuedCandidates();
                     reason = "negotiation-finished"
                 }else if(this._rtc.currentLocalDescription){
@@ -356,7 +391,7 @@ class Connection extends EventTarget {
                     this.signalingState = "awaiting-offer"
                     reason = "signaling-begin"
                 }
-            }else{
+            }else if(!(this._rtc.signalingState === "closed" && this.signalingState === "reconnecting")){
                 this.signalingState = Connection._signalingStates[this._rtc.signalingState].state;
                 reason = Connection._signalingStates[this._rtc.signalingState].reason;
                 if(this.signalingState === "closed"){
@@ -366,7 +401,7 @@ class Connection extends EventTarget {
                     this._useQueuedCandidates();
                 }
             }
-            if(this.signalingState === "closed" || this.signalingState === "complete"){
+            if(this.signalingState === "closed" || this.signalingState === "reconnecting" || this.signalingState === "complete"){
                 this._canRenegotiate = true;
             }
             super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, reason, this));
@@ -383,6 +418,7 @@ class Connection extends EventTarget {
             this._initLocalInternalChannel();
         }
         this.signalingState = "awaiting-offer";
+        super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "init", this));
     }
 
     _initLocalInternalChannel () {
@@ -398,7 +434,7 @@ class Connection extends EventTarget {
                 type: "ping"
             }));
             this._disconnectTimer = setTimeout(() => {
-                super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "timeout", this));
+                super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "local-internal-timeout", this));
                 this.close(true);
             }, this._config.disconnectTimeout);
         });
@@ -419,8 +455,11 @@ class Connection extends EventTarget {
                                 type: "ping"
                             }));
                             this._disconnectTimer = setTimeout(() => {
-                                super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "timeout", this));
-                                this.close(true);
+                                if(this.signalingState !== "reconnecting"){
+                                    this.signalingState = "closed";
+                                    super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "remote-internal-timeout", this));
+                                    this.close(true);
+                                }
                             }, this._config.disconnectTimeout);
                         }else{
                             this.close(true);
@@ -443,9 +482,11 @@ class Connection extends EventTarget {
             this._localInternalChannel = null;
             this.ping = null;
             super.dispatchEvent(new PingChangeEvent(this.ping));
-            this.signalingState = "closed";
-            super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "local-internal-closed", this));
-            this.close(true);
+            if(this.signalingState !== "reconnecting"){
+                this.signalingState = "closed";
+                super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "local-internal-closed", this));
+                this.close(true);
+            }
         });
     }
 
@@ -506,7 +547,7 @@ class Connection extends EventTarget {
     }
 
     async offer (renegotiate) {
-        if(renegotiate ? (this.signalingState === "negotiating" || this.signalingState === "closed") : this.signalingState !== "awaiting-offer"){
+        if(renegotiate ? (this.signalingState === "negotiating" || this.signalingState === "closed" || this.signalingState === "reconnecting") : this.signalingState !== "awaiting-offer"){
             throw Connection._libName + "Error: Connection cannot generate offer.";
         }else if(!this._rtc){
             throw Connection._libName + "Error: Connection not initialized."
@@ -518,6 +559,13 @@ class Connection extends EventTarget {
         
         if(!renegotiate){
             this.polite = false;
+            super.dispatchEvent(new BeforeNegotiateEvent());
+
+            this._localDats.forEach(d => {
+                if(!d._dat){
+                    d._init(this._rtc.createDataChannel(d.label));
+                }
+            });
         }
 
         const o = await this._rtc.createOffer({
@@ -551,6 +599,16 @@ class Connection extends EventTarget {
 
         this._candidates = [];
         this._hasAllCandidates = false;
+
+        if(!(this._localInternalChannel && this._localInternalChannel.readyState === "open")){
+            super.dispatchEvent(new BeforeNegotiateEvent());
+
+            this._localDats.forEach(d => {
+                if(!d._dat){
+                    d._init(this._rtc.createDataChannel(d.label));
+                }
+            });
+        }
 
         await this._rtc.setRemoteDescription(d);
         const a = await this._rtc.createAnswer();
@@ -604,18 +662,27 @@ class Connection extends EventTarget {
     }
 
     createDataChannel (label) {
-        if(this.signalingState === "closed"){
+        if(this.signalingState === "closed" || this.signalingState === "reconnecting"){
             throw Connection._libName + "Error: Connection closed.";
         }
 
         const d = new DataChannel(this._rtc.createDataChannel(label || Connection.generateRandomId()), false);
         super.dispatchEvent(new DataChannelEvent(d, false));
+        this._localDats.push(d);
         return d;
     }
 
-    close (_silent) {
-        if(this.signalingState === "closed" && !_silent){
+    close (_internal) {
+        if(this.signalingState === "closed" && !_internal){
             throw Connection._libName + "Error: Connection already closed.";
+        }
+
+        if(this.signalingState === "reconnecting" && _internal){
+            return;
+        }
+
+        if(!_internal){
+            this._permanentlyClosed = true;
         }
 
         if(this.ping){
@@ -643,7 +710,28 @@ class Connection extends EventTarget {
         this._hasAllCandidates = false;
         this._canRenegotiate = true;
 
-        this.signalingState = "closed";
-        super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "closed", this));
+
+        if(this._permanentlyClosed){
+            this.signalingState = "closed";
+            super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "closed", this));
+        }else{
+            this.signalingState = "reconnecting";
+            super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "reconnection", this));
+            setTimeout(() => {
+                this.init();
+                if(!this.polite){
+                    this.offer();
+                }
+                if(this._reconnectTimer){
+                    return;
+                }
+                this._reconnectTimer = setTimeout(() => {
+                    this.signalingState = "closed";
+                    super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "reconnect-timeout", this));
+                    this._permanentlyClosed = true;
+                    this.close(true);
+                }, this._config.reconnectTimeout);
+            }, this._config.reconnectDelay * !this.polite);
+        }
     }
 }
