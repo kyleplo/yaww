@@ -60,13 +60,6 @@ class DataChannelEvent extends Event {
     }
 }
 
-class NegotiateEvent extends Event {
-    constructor (remote) {
-        super("negotiate", {cancelable: true});
-        this.remote = remote;
-    }
-}
-
 class BeforeNegotiateEvent extends Event {
     constructor () {
         super("beforenegotiate");
@@ -323,14 +316,13 @@ class Connection extends EventTarget {
             if(!this._canRenegotiate || !this._rtc || !this._rtc.currentLocalDescription){
                 return;
             }
-            if(super.dispatchEvent(new NegotiateEvent(false))){
-                if(this.polite){
-                    this._remoteInternalChannel.send(JSON.stringify({
-                        type: "negotiate"
-                    }));
-                }else{
-                    this.offer(true);
-                }
+
+            if(this.polite){
+                this._remoteInternalChannel.send(JSON.stringify({
+                    type: "negotiate"
+                }));
+            }else{
+                this.offer(true);
             }
         });
         this._rtc.addEventListener("track", e => {
