@@ -127,11 +127,16 @@ class DataChannel extends EventTarget {
         this.remote = remote;
         this.connectionState = "closed";
         this._lastConnectionStateChangeValue = "";
+        this._permanentlyClosed = false;
 
         this._init(dataChannel)
     }
 
     _init (dataChannel) {
+        if(this._permanentlyClosed){
+            return;
+        }
+
         this._dat = dataChannel;
         this._dat.addEventListener("message", e => {
             super.dispatchEvent(new DataMessageEvent(e.data));
@@ -166,6 +171,7 @@ class DataChannel extends EventTarget {
             throw Connection._libName + "Error: Data channel not open."
         }
 
+        this._permanentlyClosed = true;
         this._dat.close();
     }
 }
