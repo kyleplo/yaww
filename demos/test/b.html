@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Client B - YAWW Test Suite</title>
+  <link rel="stylesheet" href="./tests.css">
+</head>
+
+<body>
+  <h2>Client B - YAWW Test Suite</h2>
+  <p>Join user with ID: <input type="text" id="id"> <button id="join">Join</button></p>
+  <p>Ping: <span id="ping"></span></p>
+  <hr>
+  <p id="testSummary"></p>
+  <table id="testContainer"></table>
+  <script src="../../src/yaww.js"></script>
+  <script src="./tests.js"></script>
+  <script>
+    createTest("finish");
+    createTest("socket");
+    createTest("signaling-state-closed", 2);
+    createTest("signaling-state-awaiting-offer", 3);
+    createTest("signaling-state-negotiating", 4);
+    createTest("signaling-state-reconnecting", 2);
+    createTest("signaling-state-complete", 4);
+    createTest("ping", 3);
+    createTest("data-channel-add");
+    createTest("data-channel-open");
+    createTest("data-channel-receive");
+    createTest("reconnect");
+    createTest("stream");
+    createTest("close");
+    assertFuture("socket", 1000, "failed to connect to the signaling server websocket");
+    try {
+      var conn, dat, socket;
+      var socketConnected = false;
+      var awaitingReconnect = false;
+      window.addEventListener("load", async () => {
+        socket = new WebSocket("ws://" + location.hostname + ":7071");
+        socket.addEventListener("open", () => {
+          socketConnected = true;
+          assert("socket", true);
+        });
+        socket.addEventListener("message", async ms => {
+          const m = JSON.parse(ms.data);
+          if (conn && conn.signalingState === "closed") {
+            return;
+          }
+          if (m.type === "iceCandidate") {
+            conn.receiveIceCandidate(JSON.parse(m.data));
+          } else if (m.type === "sdp") {
+            conn.receiveSignal(JSON.parse(m.data));
+          }
+        })
+        await new Promise(r => {
+          const connectInterval = setInterval(() => {
+            if (socketConnected) {
+              clearInterval(connectInterval);
+              r();
+            }
+          }, 200)
+        });
+        conn = new Connection({
+          iceServers: [
+            {
+              urls: "stun:stun.l.google.com:19302"
+            }
+          ]
+        });
+        conn.addEventListener("signalingstatechange", e => {
+          assert("signaling-state-" + e.signalingState, true);
+          if(e.signalingState === "complete"){
+            assertFuture("finish", 30000, "test suite not finished in time");
+            assertFuture("ping", 4000, "ping not recieved soon after connection established")
+            assertFuture("data-channel-add", 500, "data channel not added soon after connection established");
+            assertFuture("data-channel-open", 1000, "data channel not opened soon after added")
+            assertFuture("data-channel-receive", 2000, "message not received soon after data channel opened");
+            if(awaitingReconnect){
+              assert("reconnect", true);
+            }
+          }else if(e.signalingState === "closed" && (e.reason === "closed" || e.reason === "reconnect-timeout")){
+            assert("close", true);
+            assert("finish", true);
+          }
+        });
+        conn.addEventListener("signal", e => {
+          socket.send(JSON.stringify({
+            type: "sdp",
+            data: JSON.stringify(e.signal)
+          }));
+        });
+        conn.addEventListener("candidatediscovered", e => {
+          socket.send(JSON.stringify({
+            type: "iceCandidate",
+            data: JSON.stringify(e.candidate)
+          }))
+        });
+        conn.addEventListener("pingchange", e => {
+          document.querySelector("#ping").textContent = e.ping;
+          assert("ping", true);
+        });
+        conn.addEventListener("streamadded", () => {
+          assert("stream", true);
+          setTimeout(() => {
+            conn.close();
+            assertFuture("close", 1000, "connection not closed in time");
+          }, 1000);
+        });
+        conn.init();
+        document.querySelector("#join").addEventListener("click", () => {
+          socket.send(JSON.stringify({
+            type: "join",
+            data: document.querySelector("#id").value
+          }));
+        });
+        conn.addEventListener("datachannel", e => {
+          const dat = e.channel;
+          assert("data-channel-add", true);
+          dat.addEventListener("connectionstatechange", e => {
+            if(e.connectionState === "open"){
+              assert("data-channel-open", true);
+              dat.send("ping");
+            }
+          });
+          dat.addEventListener("message", e => {
+            assert("data-channel-receive", true);
+            if(e.message === "reconnect"){
+              conn.close(true);
+              assertFuture("reconnect", 3000, "reconnection not achieved in time");
+              awaitingReconnect = true;
+            }
+          });
+        });
+      });
+    } catch (e) {
+      assert("finish", false, e);
+    }
+  </script>
+</body>
+
+</html>

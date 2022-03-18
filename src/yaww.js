@@ -276,27 +276,30 @@ class Connection extends EventTarget {
                     super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "remote-internal-opened", this));
                 })
                 this._remoteInternalChannel.addEventListener("message", e => {
+                    var d;
                     try {
-                        const d = JSON.parse(e.data);
-                        if(!d.type){
-                            throw null;
-                        }
-                        if(d.type === "ping"){
+                        d = JSON.parse(e.data);
+                    } catch (e) {
+                        throw Connection._libName + "Error: Invalid message received on remote internal channel."
+                    }
+                    if(!d.type){
+                        throw Connection._libName + "Error: Invalid message received on remote internal channel.";
+                    }
+                    if(d.type === "ping"){
+                        try {
                             e.target.send(JSON.stringify({
                                 type: "pong"
                             }))
-                        }else if(d.type === "negotiate"){
-                            if(!this._canRenegotiate || !this._rtc || !this._rtc.currentLocalDescription){
-                                throw Connection._libName + "Error: Renegotation requested when not possible."
-                            }
-                            this.offer(true);
-                        }else if(d.type === "signal"){
-                            this.receiveSignal(d.data);
-                        }else if(d.type === "candidate"){
-                            this.receiveIceCandidate(d.data);
+                        } catch (e) {}
+                    }else if(d.type === "negotiate"){
+                        if(!this._canRenegotiate || !this._rtc || !this._rtc.currentLocalDescription){
+                            throw Connection._libName + "Error: Renegotation requested when not possible."
                         }
-                    } catch (e) {
-                        throw Connection._libName + "Error: Invalid message received on remote internal channel."
+                        this.offer(true);
+                    }else if(d.type === "signal"){
+                        this.receiveSignal(d.data);
+                    }else if(d.type === "candidate"){
+                        this.receiveIceCandidate(d.data);
                     }
                 });
                 this._remoteInternalChannel.addEventListener("close", () => {
@@ -431,56 +434,53 @@ class Connection extends EventTarget {
             e.target.send(JSON.stringify({
                 type: "ping"
             }));
-            this._disconnectTimer = setTimeout(() => {
-                super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "local-internal-timeout", this));
-                this.close(true);
-            }, this._config.disconnectTimeout);
         });
         this._localInternalChannel.addEventListener("message", e => {
+            var d;
             try {
-                const d = JSON.parse(e.data);
-                if(!d.type){
-                    throw null;
-                }
-                if(d.type === "pong"){
-                    clearTimeout(this._disconnectTimer);
-                    this.ping = Date.now() - this._lastPing;
-                    super.dispatchEvent(new PingChangeEvent(this.ping));
-                    setTimeout(() => {
-                        if(e.target.readyState === "open"){
-                            this._lastPing = Date.now();
-                            e.target.send(JSON.stringify({
-                                type: "ping"
-                            }));
-                            this._disconnectTimer = setTimeout(() => {
-                                if(this.signalingState !== "reconnecting"){
-                                    this.signalingState = "closed";
-                                    super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "remote-internal-timeout", this));
-                                    this.close(true);
-                                }
-                            }, this._config.disconnectTimeout);
-                        }else{
-                            this.close(true);
-                        }
-                    }, this._config.pingInterval);
-                }else if(d.type === "negotiate"){
-                    if(this._canRenegotiate && this._rtc && this._rtc.currentLocalDescription){
-                        this.polite = false;
-                        this._canRenegotiate = false;
-                        e.target.send(JSON.stringify({
-                            type: "negotiate"
-                        }));
-                    }
-                }
+                d = JSON.parse(e.data);
             } catch (e) {
                 throw Connection._libName + "Error: Invalid message received on local internal channel."
+            }
+            if(!d.type){
+                throw Connection._libName + "Error: Invalid message received on local internal channel.";
+            }
+            if(d.type === "pong"){
+                clearTimeout(this._disconnectTimer);
+                this.ping = Date.now() - this._lastPing;
+                super.dispatchEvent(new PingChangeEvent(this.ping));
+                setTimeout(() => {
+                    if(e.target.readyState === "open"){
+                        this._lastPing = Date.now();
+                        e.target.send(JSON.stringify({
+                            type: "ping"
+                        }));
+                        this._disconnectTimer = setTimeout(() => {
+                            if(this.signalingState === "complete"){
+                                this.signalingState = "closed";
+                                super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "remote-internal-timeout", this));
+                                this.close(true);
+                            }
+                        }, this._config.disconnectTimeout);
+                    }else{
+                        this.close(true);
+                    }
+                }, this._config.pingInterval);
+            }else if(d.type === "negotiate"){
+                if(this._canRenegotiate && this._rtc && this._rtc.currentLocalDescription){
+                    this.polite = false;
+                    this._canRenegotiate = false;
+                    e.target.send(JSON.stringify({
+                        type: "negotiate"
+                    }));
+                }
             }
         });
         this._localInternalChannel.addEventListener("close", () => {
             this._localInternalChannel = null;
             this.ping = null;
             super.dispatchEvent(new PingChangeEvent(this.ping));
-            if(this.signalingState !== "reconnecting"){
+            if(this.signalingState === "complete"){
                 this.signalingState = "closed";
                 super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "local-internal-closed", this));
                 this.close(true);
@@ -675,7 +675,7 @@ class Connection extends EventTarget {
             throw Connection._libName + "Error: Connection already closed.";
         }
 
-        if(this.signalingState === "reconnecting" && _internal){
+        if(this.signalingState !== "complete" && this.signalingState !== "closed" && _internal){
             return;
         }
 
@@ -707,7 +707,7 @@ class Connection extends EventTarget {
         this._queuedCandidates = [];
         this._hasAllCandidates = false;
         this._canRenegotiate = true;
-
+        clearTimeout(this._disconnectTimer);
 
         if(this._permanentlyClosed){
             this.signalingState = "closed";

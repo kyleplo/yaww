@@ -1,0 +1,25 @@
+body {
+  font-family: sans-serif;
+}
+
+table, td, th {
+  border: solid 1px #888;
+  border-collapse: collapse;
+  padding: 8px;
+}
+
+td:nth-child(1) {
+  width: 100px;
+}
+
+td:nth-child(2) {
+  width: 30px;
+}
+
+td:nth-child(3) {
+  width: 20px;
+}
+
+td:nth-child(4) {
+  width: 400px;
+}
