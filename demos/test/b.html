@@ -18,11 +18,6 @@
   <script>
     createTest("finish");
     createTest("socket");
-    createTest("signaling-state-closed", 2);
-    createTest("signaling-state-awaiting-offer", 3);
-    createTest("signaling-state-negotiating", 4);
-    createTest("signaling-state-reconnecting", 2);
-    createTest("signaling-state-complete", 4);
     createTest("ping", 3);
     createTest("data-channel-add");
     createTest("data-channel-open");
@@ -61,14 +56,15 @@
           }, 200)
         });
         conn = new Connection({
-          iceServers: [
-            {
-              urls: "stun:stun.l.google.com:19302"
-            }
-          ]
+          rtc: {
+            iceServers: [
+              {
+                urls: "stun:stun.l.google.com:19302"
+              }
+            ]
+          }
         });
         conn.addEventListener("signalingstatechange", e => {
-          assert("signaling-state-" + e.signalingState, true);
           if(e.signalingState === "complete"){
             assertFuture("finish", 30000, "test suite not finished in time");
             assertFuture("ping", 4000, "ping not recieved soon after connection established")

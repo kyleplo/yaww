@@ -37,11 +37,13 @@
                     }, 200)
                 });
                 conn = new Connection({
-                    iceServers: [
-                        {
-                            urls: "stun:stun.l.google.com:19302"
-                        }
-                    ]
+                    rtc: {
+                        iceServers: [
+                            {
+                                urls: "stun:stun.l.google.com:19302"
+                            }
+                        ]
+                    }
                 });
                 conn.addEventListener("signal", e => {
                     socket.send(JSON.stringify({

@@ -256,7 +256,7 @@ class Connection extends EventTarget {
                 if(this._config.negotiateOverDataChannel && this._localInternalChannel && this._localInternalChannel.readyState === "open"){
                     this._localInternalChannel.send(JSON.stringify({
                         type: "candidate",
-                        data: e.candidate.toJSON()
+                        data: (e.candidate instanceof RTCIceCandidate ? e.candidate.toJSON() : e.candidate)
                     }));
                 }else{
                     super.dispatchEvent(new CandidateDiscoveredEvent(e.candidate));
@@ -269,7 +269,7 @@ class Connection extends EventTarget {
         this._rtc.addEventListener("datachannel", e => {
             if(e.channel.label.startsWith(Connection._libName + "-")){
                 if(this._remoteInternalChannel){
-                    throw Connection._libName + "Error: Multiple remote internal channels received."
+                    return;
                 };
                 this._remoteInternalChannel = e.channel;
                 this._remoteInternalChannel.addEventListener("open", () => {
@@ -574,7 +574,7 @@ class Connection extends EventTarget {
         if(this._config.negotiateOverDataChannel && this._localInternalChannel && this._localInternalChannel.readyState === "open"){
             this._localInternalChannel.send(JSON.stringify({
                 type: "signal",
-                data: o.toJSON()
+                data: (o instanceof RTCSessionDescription ? o.toJSON() : o)
             }));
             return;
         }
@@ -615,7 +615,7 @@ class Connection extends EventTarget {
         if(this._config.negotiateOverDataChannel && this._localInternalChannel && this._localInternalChannel.readyState === "open"){
             this._localInternalChannel.send(JSON.stringify({
                 type: "signal",
-                data: a.toJSON()
+                data: (a instanceof RTCSessionDescription ? a.toJSON() : a)
             }));
             return;
         }

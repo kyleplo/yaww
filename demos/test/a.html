@@ -19,12 +19,6 @@
   <script>
     createTest("finish");
     createTest("socket");
-    createTest("signaling-state-closed", 3);
-    createTest("signaling-state-awaiting-offer", 4);
-    createTest("signaling-state-awaiting-answer", 5);
-    createTest("signaling-state-negotiating", 3);
-    createTest("signaling-state-reconnecting", 3);
-    createTest("signaling-state-complete", 4);
     createTest("ping", 3);
     createTest("data-channel-open");
     createTest("data-channel-receive");
@@ -63,14 +57,15 @@
           }, 200)
         });
         conn = new Connection({
-          iceServers: [
-            {
-              urls: "stun:stun.l.google.com:19302"
-            }
-          ]
+          rtc: {
+            iceServers: [
+              {
+                urls: "stun:stun.l.google.com:19302"
+              }
+            ]
+          }
         });
         conn.addEventListener("signalingstatechange", e => {
-          assert("signaling-state-" + e.signalingState, true);
           if(e.signalingState === "complete"){
             if(stage === 0){
               assertFuture("finish", 30000, "test suite not finished in time");
@@ -97,6 +92,7 @@
             }else if(stage === 4){
               stage = 5;
               setTimeout(() => {
+                document.querySelector("canvas").getContext("2d");// firefox doesn't like capturing streams for canvases without a context
                 conn.addStream(document.querySelector("canvas").captureStream());
               }, 1000);
             }
