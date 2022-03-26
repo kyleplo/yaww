@@ -25,6 +25,10 @@ Clone or download this repository (or just `/src/yaww.js`), put it somewhere, an
 ```html
 <script src="./src/yaww.js"></script>
 ```
+or get it off of Github pages:
+```html
+<script src="https://gh.kyleplo.com/yaww/src/yaww.js"></script>
+```
 
 At the moment, YAWW isn't in any major public CDN.
 
@@ -86,7 +90,12 @@ See [the full documentation](https://github.com/kyleplo/yaww/wiki/Connection) fo
 ## Demos
 See [the demos folder](https://github.com/kyleplo/yaww/tree/main/demos) for demo code.
 
-The `text` and `video` demos can be opened directly in the browser, without a signaling server. You'll copy and paste the signaling information manually.
+The `text` and `video` demos can be opened directly in the browser, without a signaling server. You'll copy and paste the signaling information manually. Since they don't need a signaling server, you can try them out on Github Pages:
+- [Text Demo Client A](https://gh.kyleplo.com/yaww/demos/text/a)
+- [Text Demo Client B](https://gh.kyleplo.com/yaww/demos/text/b)
+- [Video Demo Client A](https://gh.kyleplo.com/yaww/demos/video/a)
+- [Video Demo Client B](https://gh.kyleplo.com/yaww/demos/video/b)
+
 
 The `text-signaled` and `video-signaled` demos include a simple signaling server written in Node.js using WebSockets. You'll need to run that server, but the pages themselves don't need a server.
 
