@@ -226,14 +226,6 @@ class Connection extends EventTarget {
         return Date.now().toString(36).slice(-6) + Math.random().toString(36).slice(-6);
     }
 
-    static _fixSessionDescription(desc){
-        if(desc instanceof RTCSessionDescription){
-            return desc;
-        }else{
-            return new RTCSessionDescription(desc);
-        }
-    }
-
     static _fixIceCandidate(candidate){
         if(candidate instanceof RTCIceCandidate){
             return candidate;
@@ -589,9 +581,7 @@ class Connection extends EventTarget {
             throw Connection._libName + "Error: Connection closed.";
         }
 
-        const d = Connection._fixSessionDescription(offer);
-
-        if(d.type !== "offer"){
+        if(offer.type !== "offer"){
             throw Connection._libName + "Error: Session description is not of type \"offer\"."
         }
 
@@ -608,7 +598,7 @@ class Connection extends EventTarget {
             });
         }
 
-        await this._rtc.setRemoteDescription(d);
+        await this._rtc.setRemoteDescription(offer);
         const a = await this._rtc.createAnswer();
         await this._rtc.setLocalDescription(a);
 
@@ -630,24 +620,20 @@ class Connection extends EventTarget {
             throw Connection._libName + "Error: Connection cannot accept answer.";
         }
 
-        const d = Connection._fixSessionDescription(answer);
-
-        if(d.type !== "answer"){
+        if(answer.type !== "answer"){
             throw Connection._libName + "Error: Session description is not of type \"answer\"."
         }
 
-        await this._rtc.setRemoteDescription(d);
+        await this._rtc.setRemoteDescription(answer);
     }
 
     receiveSignal (signal) {
-        const d = Connection._fixSessionDescription(signal);
-
-        if(d.type === "offer"){
+        if(signal.type === "offer"){
             return this.receiveOffer(signal);
-        }else if(d.type === "answer"){
+        }else if(signal.type === "answer"){
             return this.receiveAnswer(signal);
         }else{
-            throw Connection._libName + "Error: Session description is of unsupported type \"" + d.type + "\"."
+            throw Connection._libName + "Error: Session description is of unsupported type \"" + signal.type + "\"."
         }
     }
 
