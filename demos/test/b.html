@@ -74,7 +74,7 @@
             if(awaitingReconnect){
               assert("reconnect", true);
             }
-          }else if(e.signalingState === "closed" && (e.reason === "closed" || e.reason === "reconnect-timeout")){
+          }else if(e.signalingState === "closed" && (e.reason === "closed" || e.reason === "connect-timeout")){
             assert("close", true);
             assert("finish", true);
           }

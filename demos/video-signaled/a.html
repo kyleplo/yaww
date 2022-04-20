@@ -11,7 +11,7 @@
         <video id="remoteVideo" width="320" height="240"></video>
         <script src="../../src/yaww.js"></script>
         <script>
-            var conn, dat, socket;
+            var conn, socket;
             var socketConnected = false;
             window.addEventListener("load", async () => {
                 socket = new WebSocket("ws://" + location.hostname + ":7071");

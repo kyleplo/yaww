@@ -26,9 +26,11 @@
         <video id="remoteVideo" width="320" height="240"></video>
         <script src="../../src/yaww.js"></script>
         <script>
-            var conn, dat;
+            var conn;
             window.addEventListener("load", async () => {
-                conn = new Connection();
+                conn = new Connection({
+                    connectTimeout: Infinity
+                });
                 conn.addEventListener("allcandidatesdiscovered", e => {
                     e.candidates.forEach(c => {
                         document.querySelector("#localCandidates").value += JSON.stringify(c.toJSON()) + "\n\n";

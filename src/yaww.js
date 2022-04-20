@@ -179,7 +179,7 @@ class Connection extends EventTarget {
             disconnectTimeout: 1500,
             negotiateOverDataChannel: true,
             reconnectDelay: 1000,
-            reconnectTimeout: 5000
+            connectTimeout: 5000
         }, config);
         this.ping = null;
         this.polite = true;
@@ -192,7 +192,7 @@ class Connection extends EventTarget {
         this._queuedCandidates = [];
         this._lastSignalingStateChangeValue = "";
         this._canRenegotiate = true;
-        this._reconnectTimer = null;
+        this._connectTimer = null;
         this._permanentlyClosed = false;
         this._localDats = [];
     }
@@ -342,8 +342,8 @@ class Connection extends EventTarget {
                     this._initLocalInternalChannel();
                 }
                 this.signalingState = "complete";
-                clearTimeout(this._reconnectTimer);
-                this._reconnectTimer = null;
+                clearTimeout(this._connectTimer);
+                this._connectTimer = null;
                 this._useQueuedCandidates();
                 super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "negotiation-finished", this));
             }else if(this._rtc.iceConnectionState === "failed"){
@@ -372,8 +372,8 @@ class Connection extends EventTarget {
             if(this._rtc.signalingState === "stable"){
                 if(this._rtc.iceConnectionState === "completed" || this._rtc.iceConnectionState == "connected"){
                     this.signalingState = "complete";
-                    clearTimeout(this._reconnectTimer);
-                    this._reconnectTimer = null;
+                    clearTimeout(this._connectTimer);
+                    this._connectTimer = null;
                     this._useQueuedCandidates();
                     reason = "negotiation-finished"
                 }else if(this._rtc.currentLocalDescription){
@@ -414,6 +414,18 @@ class Connection extends EventTarget {
         super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "init", this));
     }
 
+    _setConnectTimer () {
+        if(this._connectTimer || !isFinite(this._config.connectTimeout)){
+            return;
+        }
+        this._connectTimer = setTimeout(() => {
+            this.signalingState = "closed";
+            super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "connect-timeout", this));
+            this._permanentlyClosed = true;
+            this.close(true);
+        }, this._config.connectTimeout);
+    }
+ 
     _initLocalInternalChannel () {
         if(this._localInternalChannel){
             throw Connection._libName + "Error: Internal channel already exists."
@@ -601,6 +613,7 @@ class Connection extends EventTarget {
         await this._rtc.setRemoteDescription(offer);
         const a = await this._rtc.createAnswer();
         await this._rtc.setLocalDescription(a);
+        this._setConnectTimer();
 
         if(this._config.negotiateOverDataChannel && this._localInternalChannel && this._localInternalChannel.readyState === "open"){
             this._localInternalChannel.send(JSON.stringify({
@@ -625,6 +638,7 @@ class Connection extends EventTarget {
         }
 
         await this._rtc.setRemoteDescription(answer);
+        this._setConnectTimer();
     }
 
     receiveSignal (signal) {
@@ -706,15 +720,7 @@ class Connection extends EventTarget {
                 if(!this.polite){
                     this.offer();
                 }
-                if(this._reconnectTimer){
-                    return;
-                }
-                this._reconnectTimer = setTimeout(() => {
-                    this.signalingState = "closed";
-                    super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "reconnect-timeout", this));
-                    this._permanentlyClosed = true;
-                    this.close(true);
-                }, this._config.reconnectTimeout);
+                this._setConnectTimer();
             }, this._config.reconnectDelay * !this.polite);
         }
     }
