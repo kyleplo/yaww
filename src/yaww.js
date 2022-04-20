@@ -459,6 +459,9 @@ class Connection extends EventTarget {
                         e.target.send(JSON.stringify({
                             type: "ping"
                         }));
+                        if(!isFinite(this._config.disconnectTimeout)){
+                            return;
+                        }
                         this._disconnectTimer = setTimeout(() => {
                             if(this.signalingState === "complete"){
                                 this.signalingState = "closed";
