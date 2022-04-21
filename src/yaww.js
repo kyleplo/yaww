@@ -31,7 +31,7 @@ class SignalingStateChangeEvent extends Event {
         this.reason = reason;
     }
 
-    static fatalReasons = ["stun-turn-failed", "negotiation-failed", "connect-timeout", "closed"];
+    static fatalReasons = ["negotiation-failed", "connect-timeout", "closed"];
 }
 
 class DataMessageEvent extends Event {
@@ -407,10 +407,6 @@ class Connection extends EventTarget {
             this._rtc.addEventListener("icecandidateerror", e => {
                 super.dispatchEvent(new IceCandidateErrorEvent(e));
                 console.error("STUN/TURN Server Error:", e);
-
-                this.signalingState = "closed";
-                this.close(true);
-                super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "stun-turn-failed", this));
             });
         }else if(!Connection._hasWarnedAboutIceCandidateError){
             console.warn("RTCPeerConnectionIceErrorEvent is unsupported, STUN/TURN errors will go undetected.");
