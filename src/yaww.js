@@ -26,9 +26,12 @@ class SignalingStateChangeEvent extends Event {
         }else{
             target._lastSignalingStateChangeValue = signalingState;
         }
+        this.fatal = SignalingStateChangeEvent.fatalReasons.includes(reason);
         this.signalingState = signalingState;
         this.reason = reason;
     }
+
+    static fatalReasons = ["stun-turn-failed", "negotiation-failed", "connect-timeout", "closed"];
 }
 
 class DataMessageEvent extends Event {
@@ -197,7 +200,8 @@ class Connection extends EventTarget {
         this._localDats = [];
     }
 
-    static _libName = "YAWW"
+    static _libName = "YAWW";
+    static _hasWarnedAboutIceCandidateError = false;
 
     static _signalingStates = {
         "closed": {
@@ -403,9 +407,14 @@ class Connection extends EventTarget {
             this._rtc.addEventListener("icecandidateerror", e => {
                 super.dispatchEvent(new IceCandidateErrorEvent(e));
                 console.error("STUN/TURN Server Error:", e);
+
+                this.signalingState = "closed";
+                this.close(true);
+                super.dispatchEvent(new SignalingStateChangeEvent(this.signalingState, "stun-turn-failed", this));
             });
-        }else{
+        }else if(!Connection._hasWarnedAboutIceCandidateError){
             console.warn("RTCPeerConnectionIceErrorEvent is unsupported, STUN/TURN errors will go undetected.");
+            Connection._hasWarnedAboutIceCandidateError = true;
         }
         if(!this._localInternalChannel){
             this._initLocalInternalChannel();
