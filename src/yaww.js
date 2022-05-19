@@ -152,7 +152,7 @@ class DataChannel extends EventTarget {
   }
 
   send(message) {
-    if (this._dat.readyState === "open") {
+    if (this._dat && this._dat.readyState === "open") {
       this._dat.send(message);
     } else {
       this._queue.push(message);
